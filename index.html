@@ -174,6 +174,10 @@ tr:last-child td{border-bottom:0}
 .sug small{color:var(--muted)}
 .carrinho li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
 .carrinho{list-style:none;margin:10px 0;padding:0}
+.assin{position:relative;height:150px;margin:6px 0 4px;background:#fff;border:1px dashed var(--border-2);border-radius:10px;overflow:hidden}
+.assin canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.assin span{position:absolute;left:14px;right:14px;bottom:26px;border-top:1px solid #ccc;pointer-events:none;font-size:11px;color:#999;padding-top:3px}
+.assin-h{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 .carrinho li span{flex:1;min-width:0}
 .carrinho input{width:80px;text-align:right}
 svg.ch{display:block;width:100%;height:auto}
@@ -453,7 +457,7 @@ function gerarDemo(){
   return{estoque,movimentacoes,veiculos,medidores,equipes,fechamento_bases:fb,fechamento_producao:fp,metas_bases,limites_carro:[],funcionarios,epi_cadastro,entregas_funcionario,producao_montagem,inventarios:[]};
 }
 const DEMO_USERS={master:{usuario:'master',nome:'Karlleon',setor:'master',base:''},almox:{usuario:'almox',nome:'João',setor:'almoxarifado',base:''},seguranca:{usuario:'seguranca',nome:'Patrícia',setor:'seguranca',base:''},montagem:{usuario:'montagem',nome:'Anderson Lima',setor:'montagem',base:''},mogi:{usuario:'mogi',nome:'Fixar Encarregado',setor:'gerente_base',base:'EDP MOGI'}};
-let DB=null; // dados demo em memória
+let DB=null,DEMO_ASS={}; // dados demo em memória
 
 /* ---------------------------------------------------------------- API */
 async function api(acao,corpo={}){
@@ -485,10 +489,11 @@ async function demoApi(acao,c){
     if(N(c.tipo)==='BLINDAGEM')DB.fechamento_producao.push({...reg,produto:'BLINDAGEM'});else DB.fechamento_bases.push(reg);return{gravado:{...reg,tipo:N(c.tipo)}}}
   if(acao==='km'){const v=DB.veiculos.find(x=>x.codigo===c.codigo);const a=int(v.km_atual),k=int(c.km);if(a&&k<a)throw new Error('KM menor que o último registrado ('+num(a)+').');v.km_atual=String(k);const t=agora();v.ultima_atualizacao=t.data+' '+t.hora;return{codigo:v.codigo,km:k,rodou:a?k-a:null}}
   if(acao==='medidor'){const st=N(c.status);let m=DB.medidores.find(x=>N(x.numero_serie)===N(c.numero_serie));const campo={PENDENTE:'data_solicitacao',ENTREGUE:'data_entrega',DEVOLVIDO:'data_devolucao'}[st];if(!m){m={numero_serie:N(c.numero_serie),modelo:'',equipe:N(c.equipe),status:st};DB.medidores.push(m)}m.status=st;m[campo]=agora().data;if(c.equipe)m.equipe=N(c.equipe);return{}}
-  if(acao==='entregar_func'){const f=DB.funcionarios.find(x=>x.matricula===c.matricula);if(!f)throw new Error('Funcionário não encontrado.');const {data,hora}=agora();
+  if(acao==='ficha_epi'){const f=DB.funcionarios.find(x=>N(x.matricula)===N(c.matricula));if(!f)throw new Error('Funcionário não encontrado.');const entregas=DB.entregas_funcionario.filter(e=>N(e.matricula)===N(f.matricula)).map(e=>({...e}));const assinaturas={};entregas.forEach(e=>{if(DEMO_ASS[e.assinatura_id])assinaturas[e.assinatura_id]=DEMO_ASS[e.assinatura_id]});return{funcionario:{...f},entregas,assinaturas,empresa:(LAYOUT.marca&&LAYOUT.marca.nome)||'FIXAR SOLUÇÕES',emitido:agora(),por:u.nome}}
+  if(acao==='entregar_func'){const f=DB.funcionarios.find(x=>x.matricula===c.matricula);if(!f)throw new Error('Funcionário não encontrado.');const {data,hora}=agora();const assinatura_id=c.assinatura?'A'+Date.now().toString(36):'';if(assinatura_id)DEMO_ASS[assinatura_id]=c.assinatura;
     const plano=c.itens.map(i=>{const it=DB.estoque.find(x=>N(x.codigo)===N(i.codigo));if(int(it.quantidade)<int(i.qtd))throw new Error('Almoxarifado tem '+int(it.quantidade)+' de '+it.material+' e foram pedidos '+int(i.qtd)+'.');return{it,i}});
     const feitos=plano.map(({it,i})=>{const cad=DB.epi_cadastro.find(x=>x.codigo===it.codigo)||{};let venc=i.vencimento||'';if(!venc&&int(cad.vida_util_dias)){const d=new Date();d.setDate(d.getDate()+int(cad.vida_util_dias));venc=fdate(d)}
-      DB.entregas_funcionario.push({id:'n'+Date.now()+Math.random().toString(36).slice(2,5),data,matricula:f.matricula,funcionario:f.nome,codigo_material:it.codigo,material:it.material,categoria:it.categoria,quantidade:String(int(i.qtd)),ca:cad.ca||'',validade_ca:cad.validade_ca||'',vencimento:venc,status:'EM USO',devolvido_em:'',responsavel:u.nome,nota:c.nota||''});
+      DB.entregas_funcionario.push({id:'n'+Date.now()+Math.random().toString(36).slice(2,5),data,matricula:f.matricula,funcionario:f.nome,codigo_material:it.codigo,material:it.material,categoria:it.categoria,quantidade:String(int(i.qtd)),ca:cad.ca||'',validade_ca:cad.validade_ca||'',vencimento:venc,status:'EM USO',devolvido_em:'',responsavel:u.nome,nota:c.nota||'',base:f.base||u.base||'',assinatura_id});
       it.quantidade=String(int(it.quantidade)-int(i.qtd));DB.movimentacoes.push({data,hora,tipo:'ENTREGA',codigo_material:it.codigo,quantidade:String(int(i.qtd)),equipe:'',veiculo:'',responsavel:u.nome,nota:'FUNCIONARIO '+f.matricula+' '+f.nome});return{material:it.material,qtd:int(i.qtd),vencimento:venc}});return{feitos}}
   if(acao==='devolver_func'){const e=DB.entregas_funcionario.find(x=>x.id===c.id);e.status=N(c.status)==='BAIXADO'?'BAIXADO':'DEVOLVIDO';e.devolvido_em=agora().data;if(e.status==='DEVOLVIDO'&&c.voltar_estoque){const it=DB.estoque.find(x=>x.codigo===e.codigo_material);if(it)it.quantidade=String(int(it.quantidade)+int(e.quantidade))}return{status:e.status}}
   if(acao==='funcionario_salvar'){const d=c.dados;if(!d.matricula||!d.nome)throw new Error('Matrícula e nome são obrigatórios.');const reg={matricula:N(d.matricula),nome:String(d.nome).trim().toUpperCase(),funcao:N(d.funcao),equipe:N(d.equipe),situacao:N(d.situacao)||'ATIVO',admissao:''};const i=DB.funcionarios.findIndex(x=>x.matricula===reg.matricula);if(i>=0)DB.funcionarios[i]=reg;else DB.funcionarios.push(reg);return{}}
@@ -520,11 +525,10 @@ function abertura(depois){
   const cache=store.get('layout_cache');if(cache)LAYOUT=mesclar(cache);aplicarMarca();
   const it=$('#intro');
   const hojeK=new Date().toDateString();
-  if(LAYOUT.marca.animacao===false||store.get('intro_dia')===hojeK){it.remove();return depois()}
-  store.set('intro_dia',hojeK);
+  if(LAYOUT.marca.animacao===false){it.remove();return depois()}
   $('#introNome').innerHTML=[...(LAYOUT.marca.nome||'FIXAR SOLUÇÕES')].map((c,i)=>`<span style="animation-delay:${.9+i*.045}s">${c===' '?'&nbsp;':esc(c)}</span>`).join('');
   let feito=false;const fim=()=>{if(feito)return;feito=true;it.classList.add('fora');setTimeout(()=>it.remove(),650);depois()};
-  $('#pular').onclick=fim;it.onclick=fim;setTimeout(fim,1700);
+  $('#pular').onclick=fim;it.onclick=fim;setTimeout(fim,2800);
 }
 function telaLogin(erro){
   $('#app').classList.add('hide');$('#login').classList.remove('hide');
@@ -852,10 +856,10 @@ const CAT={
       const venc=l.filter(e=>statusVenc(e.v).k===2).length,logo=l.filter(e=>statusVenc(e.v).k===1).length;
       const ls=l.filter(e=>!cat||(e.categoria||'OUTROS')===cat).sort((a,b)=>(statusVenc(b.v).k-statusVenc(a.v).k)||String(a.material).localeCompare(b.material));
       $('[data-c]',el).innerHTML=`<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 14px"><div class="avatar" style="width:46px;height:46px;font-size:17px">${esc(f.nome.slice(0,1))}</div><div><b style="font-size:16px">${esc(f.nome)}</b><div style="color:var(--muted);font-size:12px">${esc(f.funcao||'—')} · ${esc(f.equipe||'sem equipe')} · matrícula ${esc(f.matricula)}</div></div>
-        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${tag(l.length+' itens','var(--s1)')}${venc?tag(venc+' vencido(s)','var(--crit)'):''}${logo?tag(logo+' vencendo','var(--warn)'):''}${!venc&&!logo&&l.length?tag('tudo em dia','var(--good)'):''}</div></div>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${tag(l.length+' itens','var(--s1)')}${venc?tag(venc+' vencido(s)','var(--crit)'):''}${logo?tag(logo+' vencendo','var(--warn)'):''}${!venc&&!logo&&l.length?tag('tudo em dia','var(--good)'):''}${pode?`<button class="btn sm" data-ficha>${ico('clip')} Ficha de EPI (PDF)</button>`:''}</div></div>
         <div class="seg" style="margin-bottom:12px"><button data-cat="" class="${cat?'':'on'}">Todos</button>${cats.map(c=>`<button data-cat="${esc(c)}" class="${cat===c?'on':''}">${esc(c)}</button>`).join('')}</div>
         ${ls.length?`<div class="tbl"><table><thead><tr><th>Material</th><th>Tipo</th><th class="num">Qtd</th><th>CA</th><th>Validade do CA</th><th>Entregue em</th><th>Vencimento</th>${pode?'<th></th>':''}</tr></thead><tbody>${ls.map(e=>{const sv=statusVenc(e.v),sc=statusVenc(e.vca);return`<tr><td><b>${esc(e.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(e.codigo_material)}</div></td><td>${esc(e.categoria)}</td><td class="num">${num(e.q)}</td><td>${e.ca?esc(e.ca):(e.categoria==='EPI'?tag('sem CA','var(--warn)'):'—')}</td><td>${e.validade_ca?tag(sc.k?sc.t:e.validade_ca,sc.k?sc.c:'var(--muted)'):'—'}</td><td>${esc(e.data)}</td><td>${e.vencimento?tag(sv.t,sv.c):'—'}</td>${pode?`<td style="white-space:nowrap"><button class="btn sm" data-dev="${esc(e.id)}">Devolver</button> <button class="btn sm ghost" data-bx="${esc(e.id)}" title="Descartado / perdido">Baixar</button></td>`:''}</tr>`}).join('')}</tbody></table></div>`:'<div class="vazio">Nenhum material com este funcionário.</div>'}`;
-      $$('[data-cat]',el).forEach(b=>b.onclick=()=>{cat=b.dataset.cat;draw()});
+      $$('[data-cat]',el).forEach(b=>b.onclick=()=>{cat=b.dataset.cat;draw()});const fb=$('[data-ficha]',el);if(fb)fb.onclick=()=>fichaEPI(sel);
       const acao=async(id,status)=>{const volta=status==='DEVOLVIDO'?confirm('Voltar o item para o estoque do almoxarifado?\n(OK = sim, volta para o estoque · Cancelar = só registrar a devolução)'):false;try{await api('devolver_func',{id,status,voltar_estoque:volta});toast('✅ Registrado: '+(status==='DEVOLVIDO'?'devolvido':'baixado'));await carregarDados();abrir(TELA)}catch(err){toast(err.message,true)}};
       $$('[data-dev]',el).forEach(b=>b.onclick=()=>acao(b.dataset.dev,'DEVOLVIDO'));$$('[data-bx]',el).forEach(b=>b.onclick=()=>{if(confirm('Dar baixa (descartado, vencido ou perdido)?'))acao(b.dataset.bx,'BAIXADO')});};
     const s=$('[data-f]',el);if(sel)s.value=sel;s.onchange=()=>{sel=window.__funcSel=s.value;cat='';draw()};draw()}},
@@ -864,7 +868,12 @@ const CAT={
     el.innerHTML=cardH(w,CAT.entregar_funcionario,`<label>Funcionário</label><select data-f style="margin-bottom:12px">${P.func.filter(f=>N(f.situacao)!=='INATIVO').map(f=>`<option value="${esc(f.mat)}">${esc(f.nome)} · ${esc(f.funcao||'')}</option>`).join('')}</select>
       <label>Material</label><div style="position:relative"><input data-busca placeholder="Digite EPI, EPC ou ferramenta…" autocomplete="off"><div class="sug hide" data-sug></div></div>
       <label class="chk" style="margin-top:8px"><input type="checkbox" data-todas> mostrar todas as categorias</label>
-      <ul class="carrinho" data-cart></ul><input data-nota placeholder="Observação (opcional)" style="margin-bottom:10px"><div style="display:flex;justify-content:flex-end"><button class="btn pri" data-ok disabled>Confirmar entrega</button></div>`,null,'baixa do almoxarifado');
+      <ul class="carrinho" data-cart></ul><input data-nota placeholder="Observação (opcional)" style="margin-bottom:10px">
+      <div class="assin-h"><label style="margin:0">Assinatura do funcionário</label><button type="button" class="btn sm ghost" data-limpa>Limpar</button></div>
+      <div class="assin"><canvas data-sig></canvas><span>O funcionário assina aqui com o dedo ou o mouse</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">A assinatura vai para a ficha de EPI dele (NR-6).</div>
+      <div style="display:flex;justify-content:flex-end"><button class="btn pri" data-ok disabled>Confirmar entrega</button></div>`,null,'baixa do almoxarifado');
+    const pad=padAssinatura($('[data-sig]',el));$('[data-limpa]',el).onclick=pad.limpar;
     const S=q=>$(q,el);
     if(window.__funcSel)S('[data-f]').value=window.__funcSel;
     const lista=()=>{const t=N(S('[data-busca]').value);return P.est.filter(i=>(todas||['EPI','EPC','FERRAMENTAL'].includes(N(i.categoria)))&&(!t||N(i.material+' '+i.codigo).includes(t))).slice(0,30)};
@@ -875,7 +884,7 @@ const CAT={
     S('[data-todas]').onchange=e=>{todas=e.target.checked;sug()};
     S('[data-sug]').onmousedown=e=>{const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);const c=P.epiCad[N(it.codigo)]||{};let venc='';if(int(c.vida_util_dias)){const d=new Date(P.hoje);d.setDate(d.getDate()+int(c.vida_util_dias));venc=d.toISOString().slice(0,10)}
       if(!cart.find(x=>x.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1,venc});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');draw()};
-    S('[data-ok]').onclick=async()=>{const b=S('[data-ok]');b.disabled=true;try{const r=await api('entregar_func',{matricula:S('[data-f]').value,nota:S('[data-nota]').value,itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd,vencimento:c.venc?c.venc.split('-').reverse().join('/'):''}))});
+    S('[data-ok]').onclick=async()=>{const b=S('[data-ok]');if(pad.vazia()){toast('Peça para o funcionário assinar antes de confirmar.',true);return}b.disabled=true;try{const r=await api('entregar_func',{matricula:S('[data-f]').value,nota:S('[data-nota]').value,assinatura:pad.imagem(),itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd,vencimento:c.venc?c.venc.split('-').reverse().join('/'):''}))});
       toast('✅ Entregue: '+r.feitos.map(f=>f.qtd+'× '+f.material).join(', '));window.__funcSel=S('[data-f]').value;cart=[];await carregarDados();abrir(TELA)}catch(err){toast(err.message,true);b.disabled=false}}}},
   ultimas_entregas:{nome:'Últimas entregas a funcionários',setores:['almoxarifado','seguranca'],desc:'Quem recebeu o quê e quando',render(el,w){
     const l=P.ent.slice().sort((a,b)=>(b.d||0)-(a.d||0)).slice(0,40);
@@ -1083,20 +1092,71 @@ function previaAbertura(m){
 }
 function confirmar(t){return window.confirm(t)}
 
+/* ---------------------------------------------------------------- assinatura na tela */
+function padAssinatura(cv){
+  const ctx=cv.getContext('2d');let des=false,tem=false,ult=null;
+  const ajusta=()=>{const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=Math.max(1,r.width*d);cv.height=Math.max(1,r.height*d);ctx.setTransform(d,0,0,d,0,0);ctx.lineWidth=2.4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=ctx.fillStyle='#111';tem=false};
+  const pt=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
+  requestAnimationFrame(ajusta);
+  cv.onpointerdown=e=>{const r=cv.getBoundingClientRect();if(!tem&&Math.abs(cv.width-r.width*(window.devicePixelRatio||1))>2)ajusta();des=true;ult=pt(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}ctx.beginPath();ctx.arc(ult.x,ult.y,1.2,0,7);ctx.fill();tem=true;e.preventDefault()};
+  cv.onpointermove=e=>{if(!des)return;const q=pt(e);ctx.beginPath();ctx.moveTo(ult.x,ult.y);ctx.lineTo(q.x,q.y);ctx.stroke();ult=q};
+  cv.onpointerup=cv.onpointercancel=cv.onpointerleave=()=>{des=false};
+  return{limpar:ajusta,vazia:()=>!tem,imagem(){const W=480,k=W/cv.width,c=document.createElement('canvas');c.width=W;c.height=Math.max(1,Math.round(cv.height*k));const x=c.getContext('2d');x.drawImage(cv,0,0,c.width,c.height);let u=c.toDataURL('image/png');
+    if(u.length>45000){x.globalCompositeOperation='destination-over';x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);u=c.toDataURL('image/jpeg',.6)}return u}};
+}
+
+/* ---------------------------------------------------------------- ficha de EPI (imprimir / PDF) */
+async function fichaEPI(mat){
+  const w=window.open('','_blank');
+  if(!w){toast('O navegador bloqueou a janela da ficha. Libere pop-ups para este site.',true);return}
+  w.document.write('<p style="font:14px Arial,sans-serif;padding:24px">Gerando a ficha de EPI…</p>');
+  try{const r=await api('ficha_epi',{matricula:mat});w.document.open();w.document.write(htmlFicha(r));w.document.close()}
+  catch(err){w.close();toast(err.message,true)}
+}
+function htmlFicha(r){
+  const f=r.funcionario,l=r.entregas.slice().sort((a,b)=>(pdate(a.data)||0)-(pdate(b.data)||0));
+  const logo=($('.marca img')||{}).src||'',cor=(LAYOUT.marca&&LAYOUT.marca.cor)||'#C2231D';
+  const sit=e=>{const s=N(e.status)||'EM USO';return s==='EM USO'?'Em uso':(s==='DEVOLVIDO'?'Devolvido':'Baixado')+(e.devolvido_em?' em '+esc(e.devolvido_em):'')};
+  const linhas=l.map(e=>`<tr><td>${esc(e.data)}</td><td class="n">${esc(e.quantidade)}</td><td><b>${esc(e.material)}</b><br><small>${esc(e.codigo_material)} · ${esc(e.categoria||'')}</small></td><td>${esc(e.ca||'—')}</td><td>${esc(e.vencimento||'—')}</td><td>${sit(e)}</td><td>${esc(e.responsavel||'')}</td><td class="ass">${e.assinatura_id&&r.assinaturas[e.assinatura_id]?`<img src="${r.assinaturas[e.assinatura_id]}" alt="assinatura">`:'<small>sem assinatura digital</small>'}</td></tr>`).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha de EPI - ${esc(f.nome)}</title><style>
+@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}
+body{font:11px/1.4 Arial,Helvetica,sans-serif;color:#111;margin:0;padding:18px;background:#fff}
+.barra{display:flex;gap:10px;align-items:center;margin-bottom:14px;padding:10px;background:#f4f4f4;border-radius:8px}
+.barra button{font:600 13px Arial;padding:8px 14px;border:0;border-radius:6px;background:${cor};color:#fff;cursor:pointer}
+.top{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${cor};padding-bottom:10px}
+.top img{height:52px;border-radius:8px}.top h1{font-size:16px;margin:0}.top p{margin:2px 0 0;color:#555}
+.dados{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 18px;margin:12px 0}.dados b{display:inline-block;min-width:74px;color:#555;font-weight:600}
+.termo{border:1px solid #999;padding:8px 10px;text-align:justify;font-size:10.5px}
+table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:middle}
+th{background:#eee;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}td.n{text-align:right}td small{color:#666}
+td.ass{width:170px;text-align:center}td.ass img{height:46px;max-width:170px}
+.fim{display:flex;gap:50px;margin-top:46px}.fim div{flex:1;border-top:1px solid #111;text-align:center;padding-top:4px}
+.rod{margin-top:16px;color:#777;font-size:9.5px}tr{page-break-inside:avoid}@media print{.barra{display:none}body{padding:0}}
+</style></head><body>
+<div class="barra"><button onclick="print()">Imprimir / Salvar em PDF</button><span>Na janela que abrir, escolha <b>Salvar como PDF</b> como destino.</span></div>
+<div class="top">${logo?`<img src="${logo}" alt="">`:''}<div><h1>FICHA DE CONTROLE DE ENTREGA DE EPI, EPC E FERRAMENTAS</h1><p>${esc(r.empresa)} · NR-6 (Equipamento de Proteção Individual)</p></div></div>
+<div class="dados"><div><b>Funcionário</b> ${esc(f.nome)}</div><div><b>Matrícula</b> ${esc(f.matricula)}</div><div><b>Função</b> ${esc(f.funcao||'—')}</div><div><b>Equipe</b> ${esc(f.equipe||'—')}</div><div><b>Base</b> ${esc(f.base||'—')}</div><div><b>Admissão</b> ${esc(f.admissao||'—')}</div></div>
+<div class="termo">Declaro que recebi de <b>${esc(r.empresa)}</b>, gratuitamente, os equipamentos relacionados abaixo, novos ou em perfeito estado, e que fui orientado(a) sobre o uso correto, a guarda e a conservação de cada um, conforme a NR-6. Comprometo-me a usá-los apenas para a finalidade a que se destinam, a comunicar qualquer dano ou alteração que os torne impróprios para uso e a devolvê-los quando solicitado ou no meu desligamento. Estou ciente de que a recusa injustificada em usar o EPI fornecido constitui ato faltoso (CLT, art. 158).</div>
+<table><thead><tr><th>Entrega</th><th>Qtd</th><th>Material</th><th>CA</th><th>Vencimento</th><th>Situação</th><th>Entregue por</th><th>Assinatura do funcionário</th></tr></thead><tbody>${linhas||'<tr><td colspan="8" style="text-align:center;padding:14px">Nenhuma entrega registrada.</td></tr>'}</tbody></table>
+<div class="fim"><div>${esc(f.nome)}<br><small>Funcionário</small></div><div>Técnico(a) de Segurança do Trabalho</div></div>
+<div class="rod">Emitida em ${esc(r.emitido.data)} às ${esc(r.emitido.hora)} por ${esc(r.por)} · ${l.length} registro(s)</div>
+<script>window.onload=function(){setTimeout(function(){print()},500)}<\/script></body></html>`;
+}
+
 /* ---------------------------------------------------------------- acessos (master) */
 async function renderAcessos(main){
   main.innerHTML=topo('Acessos','Quem entra no sistema e em qual setor. Cada pessoa só vê as telas do próprio setor.')+'<div class="vazio">Carregando…</div>';
   let lista=[];try{lista=(await api('usuarios')).usuarios}catch(err){toast(err.message,true)}
   const form=(u={})=>`<section class="card"><div class="card-h"><span class="card-t">${u.usuario?'Editar '+esc(u.usuario):'Novo acesso'}</span></div><div class="card-b"><form data-f>
     <div class="linha"><div><label>Usuário (login)</label><input name="usuario" value="${esc(u.usuario||'')}" ${u.usuario?'readonly':''} placeholder="ex.: joao.almox" required></div><div><label>Nome</label><input name="nome" value="${esc(u.nome||'')}" placeholder="Nome que aparece na saudação" required></div></div>
-    <div class="linha"><div><label>Setor</label><select name="setor">${[...SETORES_UI,'master'].map(s=>`<option value="${s}"${u.setor===s?' selected':''}>${SETOR_NOME[s]}</option>`).join('')}</select></div><div data-bw><label>Base (gerente)</label><select name="base">${P.bases.map(b=>`<option${N(u.base)===b?' selected':''}>${esc(b)}</option>`).join('')}</select></div></div>
+    <div class="linha"><div><label>Setor</label><select name="setor">${[...SETORES_UI,'master'].map(s=>`<option value="${s}"${u.setor===s?' selected':''}>${SETOR_NOME[s]}</option>`).join('')}</select></div><div><label>Base</label><select name="base"><option value="">— nenhuma (vê todas) —</option>${[...new Set([...P.bases,N(u.base)].filter(Boolean))].sort().map(b=>`<option${N(u.base)===b?' selected':''}>${esc(b)}</option>`).join('')}</select><div style="font-size:11px;color:var(--muted);margin-top:3px" data-bw>Gerente de base precisa de uma base. Nos outros setores, a base separa os lançamentos de cada unidade.</div></div></div>
     <div class="linha"><div><label>${u.usuario?'Nova senha (deixe vazio para manter)':'Senha'}</label><input name="senha" type="text" autocomplete="off" ${u.usuario?'':'required'}></div><div style="align-self:end"><label class="chk"><input type="checkbox" name="ativo" ${u.ativo==='NAO'?'':'checked'}> Acesso ativo</label></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">${u.usuario?'<button type="button" class="btn" data-novo>Cancelar</button>':''}<button class="btn pri">Salvar acesso</button></div></form></div></section>`;
   const desenha=(u)=>{
     main.innerHTML=topo('Acessos','Quem entra no sistema e em qual setor. Cada pessoa só vê as telas do próprio setor.')+`<div class="grid"><div class="w doisTercos"><section class="card"><div class="card-h"><span class="card-t">Pessoas com acesso</span><span class="card-s">${lista.length}</span></div><div class="card-b"><div class="tbl"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Setor</th><th>Base</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>${lista.map((x,i)=>`<tr><td><b>${esc(x.usuario)}</b></td><td>${esc(x.nome)}</td><td>${tag(SETOR_NOME[x.setor]||x.setor,SETOR_COR[x.setor]||'var(--muted)')}</td><td>${esc(x.base||'—')}</td><td>${x.ativo==='NAO'?tag('bloqueado','var(--crit)'):tag('ativo','var(--good)')}</td><td>${esc(x.ultimo_acesso||'—')}</td><td><button class="btn sm" data-ed="${i}">Editar</button></td></tr>`).join('')}</tbody></table></div></div></section></div><div class="w terco">${form(u)}</div></div>`;
-    const f=$('[data-f]',main),bw=$('[data-bw]',main),st=()=>bw.style.visibility=f.setor.value==='gerente_base'?'visible':'hidden';f.setor.onchange=st;st();
+    const f=$('[data-f]',main);
     $$('[data-ed]',main).forEach(b=>b.onclick=()=>desenha(lista[b.dataset.ed]));const nv=$('[data-novo]',main);if(nv)nv.onclick=()=>desenha();
-    f.onsubmit=async e=>{e.preventDefault();const d={usuario:f.usuario.value.trim().toLowerCase(),nome:f.nome.value.trim(),setor:f.setor.value,base:f.setor.value==='gerente_base'?f.base.value:'',senha:f.senha.value,ativo:f.ativo.checked};
+    f.onsubmit=async e=>{e.preventDefault();const d={usuario:f.usuario.value.trim().toLowerCase(),nome:f.nome.value.trim(),setor:f.setor.value,base:f.base.value,senha:f.senha.value,ativo:f.ativo.checked};
       try{await api('usuario_salvar',{dados:d});toast('✅ Acesso salvo: '+d.usuario);lista=(await api('usuarios')).usuarios;desenha()}catch(err){toast(err.message,true)}};
   };
   desenha();
