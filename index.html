@@ -519,10 +519,12 @@ function aplicarMarca(){
 function abertura(depois){
   const cache=store.get('layout_cache');if(cache)LAYOUT=mesclar(cache);aplicarMarca();
   const it=$('#intro');
-  if(LAYOUT.marca.animacao===false){it.remove();return depois()}
+  const hojeK=new Date().toDateString();
+  if(LAYOUT.marca.animacao===false||store.get('intro_dia')===hojeK){it.remove();return depois()}
+  store.set('intro_dia',hojeK);
   $('#introNome').innerHTML=[...(LAYOUT.marca.nome||'FIXAR SOLUÇÕES')].map((c,i)=>`<span style="animation-delay:${.9+i*.045}s">${c===' '?'&nbsp;':esc(c)}</span>`).join('');
   let feito=false;const fim=()=>{if(feito)return;feito=true;it.classList.add('fora');setTimeout(()=>it.remove(),650);depois()};
-  $('#pular').onclick=fim;it.onclick=fim;setTimeout(fim,2600);
+  $('#pular').onclick=fim;it.onclick=fim;setTimeout(fim,1700);
 }
 function telaLogin(erro){
   $('#app').classList.add('hide');$('#login').classList.remove('hide');
@@ -554,11 +556,14 @@ function boasVindas(){
   $('#bSetor').textContent=SETOR_NOME[u.setor]+(u.base?' · '+u.base:'');
   const bw=$('#bemvindo');bw.classList.remove('hide','fora');
   const carregar=carregarDados();
-  setTimeout(async()=>{try{await carregar}catch(e){}bw.classList.add('fora');setTimeout(()=>bw.classList.add('hide'),500);abrirApp()},1900);
+  setTimeout(async()=>{try{await carregar}catch(e){}bw.classList.add('fora');setTimeout(()=>bw.classList.add('hide'),400);abrirApp()},800);
 }
-async function carregarDados(){const r=await api('dados');DADOS=r.dados;prep();}
+const chaveDados=()=>'dados_'+((SESS&&SESS.usuario&&SESS.usuario.usuario)||'');
+function dadosGuardados(){if(DEMO)return null;try{const x=localStorage.getItem('fx_'+chaveDados());return x?JSON.parse(x):null}catch(e){return null}}
+async function carregarDados(){const r=await api('dados');DADOS=r.dados;prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}
 function sair(silencioso){
   if(SESS&&!silencioso)api('sair').catch(()=>{});
+  try{localStorage.removeItem('fx_'+chaveDados())}catch(e){}
   SESS=null;DADOS=null;$('#toast').innerHTML='';store.del('sessao');sessionStorage.removeItem('fx_sessao');
   telaLogin(silencioso?'Sua sessão expirou ou o acesso foi retirado. Entre de novo.':'');
 }
@@ -1098,12 +1103,18 @@ async function renderAcessos(main){
 }
 
 /* ---------------------------------------------------------------- início */
+document.addEventListener('input',()=>{window.__mexeu=true},true);
 abertura(async()=>{
   if(DEMO||store.get('sessao_v')!==2){store.del('sessao');store.set('sessao_v',2)}
   const s=store.get('sessao')||JSON.parse(sessionStorage.getItem('fx_sessao')||'null');
   if(s&&s.token){
     SESS={token:s.token,usuario:null};
-    try{const r=await api('eu');SESS.usuario=r.usuario;if(r.layout){LAYOUT=mesclar(r.layout);store.set('layout_cache',r.layout)}aplicarMarca();await carregarDados();abrirApp();return}
+    try{
+      const pDados=api('dados');pDados.catch(()=>{});
+      const r=await api('eu');SESS.usuario=r.usuario;if(r.layout){LAYOUT=mesclar(r.layout);store.set('layout_cache',r.layout)}aplicarMarca();
+      const g=dadosGuardados();
+      if(g){DADOS=g;prep();abrirApp();pDados.then(x=>{DADOS=x.dados;prep();try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}if(!window.__mexeu)abrir(TELA)}).catch(()=>{});return}
+      DADOS=(await pDados).dados;prep();try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}abrirApp();return}
     catch(e){SESS=null;store.del('sessao')}
   }
   telaLogin();
