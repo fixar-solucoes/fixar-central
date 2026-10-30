@@ -380,7 +380,7 @@ function layoutPadrao(){return{
   versao:2,
   marca:{nome:'FIXAR SOLUÇÕES',sub:'Central de Operações',cor:'#C2231D',animacao:true},
   mensagens:[],
-  config:{meta:25,meta_por:'montador',produtos:['MONTAGEM'],dias_aviso:30},
+  config:{meta:25,meta_por:'montador',produtos:['MONTAGEM'],dias_aviso:30,sabado:false},
   setores:{
     almoxarifado:{telas:[
       {id:'t_inicio',nome:'Início',icone:'home',widgets:[W('kpis_almox'),W('valor_estoque',{largura:'metade'}),W('em_falta',{largura:'metade'}),W('ultimas_mov')]},
@@ -388,6 +388,7 @@ function layoutPadrao(){return{
       {id:'t_lancar',nome:'Lançar movimento',icone:'swap',widgets:[W('form_mov',{largura:'doisTercos'}),W('ultimas_mov',{largura:'terco',titulo:'Últimos lançamentos'})]},
       {id:'t_estoque',nome:'Estoque e valores',icone:'box',widgets:[W('valor_estoque'),W('tabela_estoque')]},
       {id:'t_func',nome:'Estoque por funcionário',icone:'users',widgets:[W('funcionario_itens',{largura:'doisTercos'}),W('entregar_funcionario',{largura:'terco'})]},
+      {id:'t_inv',nome:'Inventário',icone:'clip',widgets:[W('inventario'),W('inventario_hist')]},
       {id:'t_frota',nome:'Frota e KM',icone:'truck',widgets:[W('frota')]}
     ]},
     seguranca:{telas:[
@@ -398,8 +399,8 @@ function layoutPadrao(){return{
       {id:'t_ca',nome:'CA dos EPIs',icone:'star',widgets:[W('cad_ca')]}
     ]},
     montagem:{telas:[
-      {id:'t_lancar',nome:'Lançar produção',icone:'clip',widgets:[W('form_montagem',{largura:'metade'}),W('montagem_hoje',{largura:'metade'})]},
-      {id:'t_painel',nome:'Painel da montagem',icone:'chart',widgets:[W('kpis_montagem'),W('grafico_montagem',{largura:'doisTercos'}),W('ranking_montadores',{largura:'terco'}),W('mes_montagem')]}
+      {id:'t_lancar',nome:'Lançar produção',icone:'clip',widgets:[W('form_montagem',{largura:'metade'}),W('meu_mes',{largura:'metade'})]},
+      {id:'t_painel',nome:'Painel da montagem',icone:'chart',widgets:[W('kpis_montagem'),W('montagem_hoje'),W('grafico_montagem',{largura:'doisTercos'}),W('ranking_montadores',{largura:'terco'}),W('mes_montagem')]}
     ]},
     gerente_base:{telas:[
       {id:'t_minha',nome:'Minha base',icone:'flag',widgets:[W('form_fechamento',{largura:'metade'}),W('kpis_producao',{largura:'metade'}),W('grafico_30d'),W('mes_a_mes',{largura:'metade'}),W('ultimos_fechamentos',{largura:'metade'})]}
@@ -409,6 +410,8 @@ function layoutPadrao(){return{
 let LAYOUT=layoutPadrao();
 function mesclar(l){const p=layoutPadrao();if(!l||typeof l!=='object')return p;
   const set=l.versao===2?Object.assign(p.setores,l.setores||{}):p.setores;
+  const mt=set.montagem;if(mt&&mt.telas&&mt.telas.length&&!mt.telas.some(t=>(t.widgets||[]).some(w=>w.tipo==='meu_mes'))){mt.telas[0].widgets=(mt.telas[0].widgets||[]).map(w=>w.tipo==='montagem_hoje'?W('meu_mes',{largura:w.largura}):w);if(!mt.telas[0].widgets.some(w=>w.tipo==='meu_mes'))mt.telas[0].widgets.push(W('meu_mes',{largura:'metade'}))}
+  const al=set.almoxarifado;if(al&&al.telas&&!al.telas.some(t=>(t.widgets||[]).some(w=>w.tipo==='inventario'))){const tinv=p.setores.almoxarifado;const def=layoutPadrao().setores.almoxarifado.telas.find(t=>t.id==='t_inv');if(def)al.telas.splice(Math.min(al.telas.length,5),0,def)}
   return{versao:2,marca:Object.assign(p.marca,l.marca||{}),mensagens:Array.isArray(l.mensagens)?l.mensagens:[],config:Object.assign(p.config,l.config||{}),setores:set}}
 const CFG=()=>LAYOUT.config||{meta:25,meta_por:'montador',produtos:['MONTAGEM'],dias_aviso:30};
 
@@ -447,9 +450,9 @@ function gerarDemo(){
       entregas_funcionario.push({id:'d'+(idn++),data:fdate(ent),matricula:f.matricula,funcionario:f.nome,codigo_material:it.codigo,material:it.material,categoria:it.categoria,quantidade:'1',ca:c.ca||'',validade_ca:c.validade_ca||'',vencimento:vu?fdate(v):'',status:'EM USO',devolvido_em:'',responsavel:'João (almox)',nota:''})}});
   const producao_montagem=[];funcionarios.filter(f=>f.funcao==='MONTADOR').forEach((f,mi)=>{for(let d=120;d>=0;d--){const dt=new Date(hoje);dt.setDate(dt.getDate()-d);if(dt.getDay()===0||(d===0))continue;if(r()<.07)continue;
     producao_montagem.push({data:fdate(dt),hora:'17:'+String(Math.floor(r()*59)).padStart(2,'0'),montador:f.nome,produto:'MONTAGEM',quantidade:String(Math.max(0,Math.round(16+mi*1.3+r()*13-(dt.getDay()===6?8:0)))),meta:'25',observacao:'',lancado_por:'Montagem'})}});
-  return{estoque,movimentacoes,veiculos,medidores,equipes,fechamento_bases:fb,fechamento_producao:fp,metas_bases,limites_carro:[],funcionarios,epi_cadastro,entregas_funcionario,producao_montagem};
+  return{estoque,movimentacoes,veiculos,medidores,equipes,fechamento_bases:fb,fechamento_producao:fp,metas_bases,limites_carro:[],funcionarios,epi_cadastro,entregas_funcionario,producao_montagem,inventarios:[]};
 }
-const DEMO_USERS={master:{usuario:'master',nome:'Karlleon',setor:'master',base:''},almox:{usuario:'almox',nome:'João',setor:'almoxarifado',base:''},seguranca:{usuario:'seguranca',nome:'Patrícia',setor:'seguranca',base:''},montagem:{usuario:'montagem',nome:'Equipe de Montagem',setor:'montagem',base:''},mogi:{usuario:'mogi',nome:'Fixar Encarregado',setor:'gerente_base',base:'EDP MOGI'}};
+const DEMO_USERS={master:{usuario:'master',nome:'Karlleon',setor:'master',base:''},almox:{usuario:'almox',nome:'João',setor:'almoxarifado',base:''},seguranca:{usuario:'seguranca',nome:'Patrícia',setor:'seguranca',base:''},montagem:{usuario:'montagem',nome:'Anderson Lima',setor:'montagem',base:''},mogi:{usuario:'mogi',nome:'Fixar Encarregado',setor:'gerente_base',base:'EDP MOGI'}};
 let DB=null; // dados demo em memória
 
 /* ---------------------------------------------------------------- API */
@@ -471,7 +474,7 @@ async function demoApi(acao,c){
   if(acao==='login'){const x=DEMO_USERS[String(c.usuario).trim().toLowerCase()];if(!x||c.senha!=='1234')throw new Error('Usuário ou senha incorretos.');return{token:'demo-'+x.usuario,usuario:x,layout:store.get('demo_layout')}}
   if(acao==='eu'){const x=DEMO_USERS[String(c.token||'').replace('demo-','')];if(!x)throw new Error('SESSAO');return{usuario:x,layout:store.get('demo_layout')}}
   if(acao==='sair')return{};
-  if(acao==='dados'){const L={master:Object.keys(DB),almoxarifado:['estoque','movimentacoes','veiculos','medidores','equipes','limites_carro','funcionarios','epi_cadastro','entregas_funcionario'],seguranca:['estoque','funcionarios','epi_cadastro','entregas_funcionario'],montagem:['producao_montagem','funcionarios'],gerente_base:['fechamento_bases','fechamento_producao','metas_bases']}[u.setor];
+  if(acao==='dados'){const L={master:Object.keys(DB),almoxarifado:['estoque','movimentacoes','veiculos','medidores','equipes','limites_carro','funcionarios','epi_cadastro','entregas_funcionario','inventarios'],seguranca:['estoque','funcionarios','epi_cadastro','entregas_funcionario'],montagem:['producao_montagem','funcionarios'],gerente_base:['fechamento_bases','fechamento_producao','metas_bases']}[u.setor];
     const out={};L.forEach(k=>{let v=DB[k].map(o=>({...o}));if(u.setor==='gerente_base'&&k!=='equipes')v=v.filter(r=>N(r.base)===N(u.base));out[k]=v});
     if(u.setor==='master'||u.setor==='almoxarifado')out.saldo_equipes=saldoEq(DB.movimentacoes);out.agora=agora();return{dados:out}}
   if(acao==='movimentar'){const ef={ENTRADA:[1,0],ENTREGA:[-1,1],USO:[0,-1],DEVOLUCAO:[1,-1]}[c.tipo];const eq=N(c.equipe);const sal=saldoEq(DB.movimentacoes)[eq]||{};
@@ -490,7 +493,10 @@ async function demoApi(acao,c){
   if(acao==='devolver_func'){const e=DB.entregas_funcionario.find(x=>x.id===c.id);e.status=N(c.status)==='BAIXADO'?'BAIXADO':'DEVOLVIDO';e.devolvido_em=agora().data;if(e.status==='DEVOLVIDO'&&c.voltar_estoque){const it=DB.estoque.find(x=>x.codigo===e.codigo_material);if(it)it.quantidade=String(int(it.quantidade)+int(e.quantidade))}return{status:e.status}}
   if(acao==='funcionario_salvar'){const d=c.dados;if(!d.matricula||!d.nome)throw new Error('Matrícula e nome são obrigatórios.');const reg={matricula:N(d.matricula),nome:String(d.nome).trim().toUpperCase(),funcao:N(d.funcao),equipe:N(d.equipe),situacao:N(d.situacao)||'ATIVO',admissao:''};const i=DB.funcionarios.findIndex(x=>x.matricula===reg.matricula);if(i>=0)DB.funcionarios[i]=reg;else DB.funcionarios.push(reg);return{}}
   if(acao==='epi_salvar'){const d=c.dados;const it=DB.estoque.find(x=>x.codigo===d.codigo);const reg={codigo:d.codigo,material:it.material,ca:d.ca||'',validade_ca:d.validade_ca||'',vida_util_dias:String(int(d.vida_util_dias)||'')};const i=DB.epi_cadastro.findIndex(x=>x.codigo===d.codigo);if(i>=0)DB.epi_cadastro[i]=reg;else DB.epi_cadastro.push(reg);return{}}
-  if(acao==='montagem'){const reg={data:c.data||agora().data,hora:agora().hora,montador:String(c.montador).toUpperCase(),produto:N(c.produto)||'MONTAGEM',quantidade:String(int(c.quantidade)),meta:String(CFG().meta),observacao:c.observacao||'',lancado_por:u.nome};DB.producao_montagem.push(reg);return{gravado:reg}}
+  if(acao==='montagem'){const reg={data:c.data||agora().data,hora:agora().hora,montador:(u.setor==='montagem'?String(u.nome):String(c.montador)).toUpperCase(),produto:N(c.produto)||'MONTAGEM',quantidade:String(int(c.quantidade)),meta:String(CFG().meta),observacao:c.observacao||'',lancado_por:u.nome};DB.producao_montagem.push(reg);return{gravado:reg}}
+  if(acao==='inventario'){const {data,hora}=agora();const id='i'+Date.now().toString(36);let aj=0,val=0;c.itens.forEach(x=>{const it=DB.estoque.find(y=>y.codigo===x.codigo);if(!it)return;const sis=int(it.quantidade),ct=int(x.contado),d=ct-sis,vu=flo(it.valor_unitario);
+    DB.inventarios.push({id,data,hora,codigo:it.codigo,material:it.material,categoria:it.categoria,sistema:String(sis),contado:String(ct),diferenca:String(d),valor_unitario:it.valor_unitario,valor_diferenca:String(d*vu),responsavel:u.nome,observacao:c.observacao||''});
+    if(d){it.quantidade=String(ct);DB.movimentacoes.push({data,hora,tipo:'AJUSTE',codigo_material:it.codigo,quantidade:String(d),equipe:'',veiculo:'',responsavel:u.nome,nota:'AJUSTE DE INVENTARIO'});aj++;val+=d*vu}});return{id,contados:c.itens.length,ajustados:aj,valor_diferenca:val}}
   if(acao==='layout_salvar'){store.set('demo_layout',c.layout);return{layout:c.layout}}
   if(acao==='usuarios'){const extra=store.get('demo_users')||[];return{usuarios:[...Object.values(DEMO_USERS).map(x=>({...x,ativo:'SIM',ultimo_acesso:''})),...extra]}}
   if(acao==='usuario_salvar'){const d=c.dados;const lista=store.get('demo_users')||[];const i=lista.findIndex(x=>x.usuario===d.usuario);const reg={usuario:d.usuario,nome:d.nome,setor:d.setor,base:d.base||'',ativo:d.ativo===false?'NAO':'SIM',ultimo_acesso:''};if(DEMO_USERS[d.usuario])throw new Error('No modo demonstração os usuários de exemplo não podem ser alterados.');if(i>=0)lista[i]=reg;else lista.push(reg);store.set('demo_users',lista);return{}}
@@ -575,6 +581,7 @@ function prep(){
   P.func=(D.funcionarios||[]).map(f=>({...f,mat:N(f.matricula)})).sort((a,b)=>String(a.nome).localeCompare(b.nome));
   P.epiCad=Object.fromEntries((D.epi_cadastro||[]).map(x=>[N(x.codigo),x]));
   P.ent=(D.entregas_funcionario||[]).map(e=>({...e,d:pdate(e.data),v:pdate(e.vencimento),vca:pdate(e.validade_ca),q:int(e.quantidade),st:N(e.status)||'EM USO'}));
+  P.inv=(D.inventarios||[]);
   P.mont=(D.producao_montagem||[]).map(r=>({...r,d:pdate(r.data),q:int(r.quantidade),m:String(r.montador||'').trim().toUpperCase()})).filter(r=>r.d);
   P.montadores=[...new Set([...P.func.filter(f=>/MONTA/.test(N(f.funcao))&&N(f.situacao)!=='INATIVO').map(f=>f.nome),...P.mont.map(r=>r.m)])].filter(Boolean).sort();
 }
@@ -586,6 +593,8 @@ const statusVenc=d=>{const x=diasAte(d);if(x==null)return{t:'sem data',c:'var(--
 const emFalta=()=>P.est.filter(i=>i.min&&i.q<i.min);
 const entAtivas=()=>P.ent.filter(e=>e.st==='EM USO');
 const alertasSST=()=>entAtivas().filter(e=>statusVenc(e.v).k>0).length+Object.values(P.epiCad).filter(c=>statusVenc(pdate(c.validade_ca)).k>0).length;
+function ehUtil(d){const w=d.getDay();return w>=1&&w<=5||(w===6&&!!CFG().sabado)}
+function diasUteis(y,m,ate){const fim=ate==null?new Date(y,m+1,0).getDate():ate;let n=0;for(let d=1;d<=fim;d++)if(ehUtil(new Date(y,m,d)))n++;return n}
 function metaDia(montadoresNoDia){const c=CFG();return c.meta_por==='setor'?int(c.meta):int(c.meta)*Math.max(1,montadoresNoDia)}
 
 /* ---------------------------------------------------------------- navegação */
@@ -655,8 +664,8 @@ function montarWidgets(alvo,widgets,c){
 function cardH(w,def,corpo,dir,sub){return`<section class="card${w.cor?' cor':''}"><div class="card-h"><span class="card-t">${esc(w.titulo||def.nome)}</span>${sub?`<span class="card-s">${sub}</span>`:''}${dir?`<span class="dir">${dir}</span>`:''}</div><div class="card-b">${corpo}</div></section>`}
 const kpi=(ic,cor,l,v,h)=>`<div class="kpi"><div class="k-ic" style="background:color-mix(in srgb,${cor} 16%,transparent);color:${cor}">${ico(ic)}</div><div><div class="k-l">${esc(l)}</div><div class="k-v">${v}</div>${h?`<div class="k-h">${h}</div>`:''}</div></div>`;
 const tag=(t,c)=>`<span class="tag" style="--tg:${c}">${esc(t)}</span>`;
-const TIPO_COR={ENTRADA:'var(--s3)',ENTREGA:'var(--s1)',USO:'var(--s2)',DEVOLUCAO:'var(--s6)',SAIDA:'var(--s1)'};
-const TIPO_NOME={ENTRADA:'Entrada',ENTREGA:'Entrega',USO:'Uso',DEVOLUCAO:'Devolução',SAIDA:'Entrega'};
+const TIPO_COR={ENTRADA:'var(--s3)',ENTREGA:'var(--s1)',USO:'var(--s2)',DEVOLUCAO:'var(--s6)',SAIDA:'var(--s1)',AJUSTE:'var(--s4)'};
+const TIPO_NOME={ENTRADA:'Entrada',ENTREGA:'Entrega',USO:'Uso',DEVOLUCAO:'Devolução',SAIDA:'Entrega',AJUSTE:'Ajuste (inventário)'};
 function hbars(rows,fmt){const mx=Math.max(1,...rows.map(r=>r.v));return rows.map((r,i)=>`<div class="hbar"><div class="hbar-h"><span>${esc(r.l)}</span><span>${fmt(r.v)}</span></div><div class="hbar-tr"><i style="width:${Math.max(.6,r.v/mx*100)}%;background:${r.c||'var(--s1)'};animation-delay:${i*.04}s"></i></div></div>`).join('')}
 function linha(series,labels,fmt){
   const Wd=1000,H=240,ml=42,mr=12,mt=10,mb=24;const mx=Math.max(1,...series.flatMap(s=>s.v));
@@ -782,6 +791,39 @@ const CAT={
       try{const r=await api('fechamento',{tipo,data:d[2]+'/'+d[1]+'/'+d[0],base:travada?c.base:S('[data-b]').value,equipes:S('[data-e]').value,quantidade:q,motivo:S('[data-m]').value,observacao:S('[data-o]').value});
         toast('✅ Fechamento gravado: '+r.gravado.base+' · '+num(r.gravado.quantidade)+(tipo==='MEDIDOR'?' medidores':' blindagens'));await carregarDados();abrir(TELA)}
       catch(err){toast(err.message,true);b.disabled=false}}}},
+  /* ---------- inventário ---------- */
+  inventario:{nome:'Inventário (contagem)',setores:['almoxarifado'],desc:'Contar o estoque físico e ajustar o sistema para o que foi contado',render(el,w){
+    const K='inv_rascunho';let cont=store.get(K)||{};let cat='',prat='',busca='',soDif=false;
+    const cats=[...new Set(P.est.map(i=>i.categoria).filter(Boolean))].sort(),prats=[...new Set(P.est.map(i=>i.prateleira).filter(Boolean))].sort();
+    el.innerHTML=cardH(w,CAT.inventario,`<div class="linha"><input placeholder="Buscar material ou código…" data-b><select data-c><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select><select data-p><option value="">Todas as prateleiras</option>${prats.map(c=>`<option>${esc(c)}</option>`).join('')}</select><label class="chk" style="align-self:center"><input type="checkbox" data-sd> só divergentes</label></div>
+      <div data-res style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div class="tbl" style="max-height:560px"><table><thead><tr><th>Material</th><th>Local</th><th class="num">No sistema</th><th class="num" style="width:120px">Contado</th><th class="num">Diferença</th><th class="num">Valor dif.</th></tr></thead><tbody data-t></tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><input data-obs placeholder="Observação do inventário (opcional)" style="flex:1;min-width:200px"><button class="btn" data-zerar>Limpar contagem</button><button class="btn" data-igual title="Marca os itens visíveis como contados iguais ao sistema">Visíveis = sistema</button><button class="btn pri" data-ok>Gravar inventário</button></div>`,null,'a contagem fica salva neste aparelho até gravar');
+    const S=q=>$(q,el);
+    const lista=()=>P.est.filter(i=>(!cat||i.categoria===cat)&&(!prat||i.prateleira===prat)&&(!busca||N(i.material+' '+i.codigo).includes(busca))&&(!soDif||(cont[i.codigo]!=null&&int(cont[i.codigo])!==i.q)));
+    const resumo=()=>{const ks=Object.keys(cont).filter(k=>String(cont[k])!=='');let div=0,val=0;ks.forEach(k=>{const i=P.est.find(x=>x.codigo===k);if(!i)return;const d=int(cont[k])-i.q;if(d){div++;val+=d*flo(i.valor_unitario)}});
+      S('[data-res]').innerHTML=tag(ks.length+' de '+P.est.length+' contados','var(--s1)')+(div?tag(div+' divergente(s)','var(--warn)'):'')+(val?tag('diferença '+reaisC(val),val<0?'var(--crit)':'var(--good)'):'');S('[data-ok]').disabled=!ks.length};
+    const linhaHtml=i=>{const c=cont[i.codigo];const has=c!=null&&String(c)!=='';const d=has?int(c)-i.q:0;const v=d*flo(i.valor_unitario);
+      return `<tr data-cod="${esc(i.codigo)}"><td><b>${esc(i.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(i.codigo)} · ${esc(i.categoria)}</div></td><td>${esc([i.prateleira,i.posicao].filter(Boolean).join('-')||'—')}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num"><input type="number" min="0" inputmode="numeric" value="${has?esc(c):''}" data-in style="height:34px;text-align:right"></td><td class="num" data-d>${has?(d?tag((d>0?'+':'')+num(d),d>0?'var(--good)':'var(--crit)'):tag('ok','var(--muted)')):'—'}</td><td class="num" data-v>${has&&d&&flo(i.valor_unitario)?reaisC(v):'—'}</td></tr>`};
+    const draw=()=>{const l=lista();S('[data-t]').innerHTML=l.map(linhaHtml).join('')||'<tr><td colspan="6" class="vazio">Nada para mostrar.</td></tr>';
+      $$('[data-in]',el).forEach(inp=>{inp.oninput=()=>{const cod=inp.closest('tr').dataset.cod;if(inp.value==='')delete cont[cod];else cont[cod]=inp.value;store.set(K,cont);const i=P.est.find(x=>x.codigo===cod);const d=int(inp.value)-i.q;const tr=inp.closest('tr');
+          $('[data-d]',tr).innerHTML=inp.value===''?'—':(d?tag((d>0?'+':'')+num(d),d>0?'var(--good)':'var(--crit)'):tag('ok','var(--muted)'));$('[data-v]',tr).textContent=inp.value!==''&&d&&flo(i.valor_unitario)?reaisC(d*flo(i.valor_unitario)):'—';resumo()};
+        inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const all=$$('[data-in]',el);const n=all[all.indexOf(inp)+1];n&&n.focus()}}});resumo()};
+    S('[data-b]').oninput=e=>{busca=N(e.target.value);draw()};S('[data-c]').onchange=e=>{cat=e.target.value;draw()};S('[data-p]').onchange=e=>{prat=e.target.value;draw()};S('[data-sd]').onchange=e=>{soDif=e.target.checked;draw()};
+    S('[data-zerar]').onclick=()=>{if(!confirm('Apagar toda a contagem feita neste aparelho?'))return;cont={};store.del(K);draw()};
+    S('[data-igual]').onclick=()=>{lista().forEach(i=>{if(cont[i.codigo]==null||cont[i.codigo]==='')cont[i.codigo]=String(i.q)});store.set(K,cont);draw()};
+    S('[data-ok]').onclick=async()=>{const itens=Object.entries(cont).filter(([k,v])=>String(v)!=='').map(([codigo,contado])=>({codigo,contado}));
+      const div=itens.filter(x=>{const i=P.est.find(y=>y.codigo===x.codigo);return i&&int(x.contado)!==i.q}).length;
+      if(!confirm(`Gravar inventário?\n\n${itens.length} item(ns) contado(s), ${div} com diferença.\nO estoque desses itens passa a ser o valor contado.`))return;
+      const b=S('[data-ok]');b.disabled=true;b.textContent='Gravando…';
+      try{const r=await api('inventario',{itens,observacao:S('[data-obs]').value});store.del(K);toast('✅ Inventário gravado: '+r.contados+' contados, '+r.ajustados+' ajustados'+(r.valor_diferenca?' ('+reaisC(r.valor_diferenca)+')':'')+'.');await carregarDados();abrir(TELA)}
+      catch(err){toast(err.message,true);b.disabled=false;b.textContent='Gravar inventário'}};
+    draw()}},
+  inventario_hist:{nome:'Histórico de inventários',setores:['almoxarifado'],desc:'Inventários feitos, divergências e valor da diferença',render(el,w){
+    const g={};P.inv.forEach(r=>{const o=g[r.id]||(g[r.id]={id:r.id,data:r.data,hora:r.hora,resp:r.responsavel,obs:r.observacao,n:0,div:0,val:0,itens:[]});o.n++;if(int(r.diferenca)){o.div++;o.itens.push(r)}o.val+=flo(r.valor_diferenca)});
+    const l=Object.values(g).sort((a,b)=>(pdate(b.data)||0)-(pdate(a.data)||0)||String(b.hora).localeCompare(a.hora));
+    el.innerHTML=cardH(w,CAT.inventario_hist,l.length?`<div class="tbl"><table><thead><tr><th>Data</th><th>Quem</th><th class="num">Contados</th><th class="num">Divergentes</th><th class="num">Valor da diferença</th><th></th></tr></thead><tbody>${l.map((o,k)=>`<tr><td>${esc(o.data)} ${esc(o.hora||'')}</td><td>${esc(o.resp)}</td><td class="num">${num(o.n)}</td><td class="num">${o.div?tag(num(o.div),'var(--warn)'):'0'}</td><td class="num">${o.val?tag(reaisC(o.val),o.val<0?'var(--crit)':'var(--good)'):'—'}</td><td>${o.div?`<button class="btn sm" data-ver="${k}">Ver</button>`:''}</td></tr>`).join('')}</tbody></table></div><div data-det style="margin-top:12px"></div>`:'<div class="vazio">Nenhum inventário gravado ainda.</div>');
+    $$('[data-ver]',el).forEach(b=>b.onclick=()=>{const o=l[b.dataset.ver];$('[data-det]',el).innerHTML=`<div class="tbl"><table><thead><tr><th>Material</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferença</th><th class="num">Valor</th></tr></thead><tbody>${o.itens.map(r=>`<tr><td>${esc(r.material)}</td><td class="num">${num(int(r.sistema))}</td><td class="num">${num(int(r.contado))}</td><td class="num">${tag((int(r.diferenca)>0?'+':'')+num(int(r.diferenca)),int(r.diferenca)>0?'var(--good)':'var(--crit)')}</td><td class="num">${flo(r.valor_diferenca)?reaisC(flo(r.valor_diferenca)):'—'}</td></tr>`).join('')}</tbody></table></div>`})}},
   /* ---------- estoque: valores e alertas ---------- */
   valor_estoque:{nome:'Valor do estoque',setores:['almoxarifado'],desc:'Quanto vale o estoque, no total e por categoria (ex.: ferramental)',render(el,w){
     const cats={};let tot=0,semPreco=0;P.est.forEach(i=>{const v=Math.max(0,i.q)*flo(i.valor_unitario);if(!flo(i.valor_unitario))semPreco++;tot+=v;const k=i.categoria||'SEM CATEGORIA';(cats[k]=cats[k]||{v:0,n:0,q:0}).v+=v;cats[k].n++;cats[k].q+=Math.max(0,i.q)});
@@ -854,20 +896,40 @@ const CAT={
     el.innerHTML=cardH(w,CAT.cad_ca,l.length?`<div class="tbl" style="max-height:640px"><table><thead><tr><th>Material</th><th>Tipo</th><th style="width:130px">CA</th><th style="width:160px">Validade do CA</th><th style="width:120px">Vida útil (dias)</th><th>Situação</th><th></th></tr></thead><tbody>${l.map(i=>{const c=P.epiCad[N(i.codigo)]||{};const vd=pdate(c.validade_ca);const s=c.ca?statusVenc(vd):{t:'sem CA',c:'var(--warn)'};return`<tr data-row="${esc(i.codigo)}"><td><b>${esc(i.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(i.codigo)}</div></td><td>${esc(i.categoria)}</td><td><input data-k="ca" value="${esc(c.ca||'')}" style="height:32px"></td><td><input type="date" data-k="validade_ca" value="${vd?vd.toISOString().slice(0,10):''}" style="height:32px"></td><td><input type="number" data-k="vida_util_dias" value="${esc(c.vida_util_dias||'')}" style="height:32px"></td><td>${tag(s.t,s.c)}</td><td><button class="btn sm" data-sv="${esc(i.codigo)}">Salvar</button></td></tr>`}).join('')}</tbody></table></div>`:'<div class="vazio">Nenhum material das categorias EPI/EPC no estoque.</div>',null,'vida útil calcula o vencimento na entrega');
     $$('[data-sv]',el).forEach(b=>b.onclick=async()=>{const tr=b.closest('tr');const g=k=>$(`[data-k="${k}"]`,tr).value;const v=g('validade_ca');try{await api('epi_salvar',{dados:{codigo:b.dataset.sv,ca:g('ca'),validade_ca:v?v.split('-').reverse().join('/'):'',vida_util_dias:g('vida_util_dias')}});toast('✅ CA salvo.');await carregarDados();abrir(TELA)}catch(err){toast(err.message,true)}})}},
   /* ---------- produção da montagem ---------- */
+  meu_mes:{nome:'Meu mês (montador)',setores:['montagem'],desc:'Produção do montador: hoje, mês, meta do mês e quanto falta',render(el,w){
+    const souMontador=SESS.usuario.setor==='montagem';
+    let quem=souMontador?String(SESS.usuario.nome).trim().toUpperCase():(window.__montSel||P.montadores[0]||'');
+    const desenha=()=>{const c=CFG(),meta=int(c.meta)||25,hj=P.hoje,mk=mkey(hj);
+      const mes=P.mont.filter(r=>r.m===quem&&mkey(r.d)===mk),feito=mes.reduce((t,r)=>t+r.q,0),hoje=mes.filter(r=>dkey(r.d)===dkey(hj)).reduce((t,r)=>t+r.q,0);
+      const uteis=diasUteis(hj.getFullYear(),hj.getMonth()),passados=diasUteis(hj.getFullYear(),hj.getMonth(),hj.getDate()-1),restam=Math.max(0,uteis-passados);
+      const metaMes=meta*uteis,falta=Math.max(0,metaMes-feito),porDia=restam?Math.ceil(falta/restam):falta,pc=metaMes?Math.min(100,feito/metaMes*100):0;
+      const esperado=meta*passados,adiant=feito-esperado;
+      const dias=[];for(let d=1;d<=new Date(hj.getFullYear(),hj.getMonth()+1,0).getDate();d++){const dt=new Date(hj.getFullYear(),hj.getMonth(),d);if(dt>hj)break;dias.push(dt)}
+      const porD={};mes.forEach(r=>porD[dkey(r.d)]=(porD[dkey(r.d)]||0)+r.q);
+      const mx=Math.max(meta,...Object.values(porD),1);
+      $('[data-c]',el).innerHTML=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><div class="avatar" style="width:44px;height:44px;font-size:17px">${esc((quem||'?').slice(0,1))}</div><div><b style="font-size:16px">${esc(quem||'—')}</b><div style="font-size:12px;color:var(--muted)">${mlab(mk)} · ${uteis} dias úteis · meta ${meta}/dia</div></div></div>
+        <div class="kpis" style="margin-bottom:14px">${kpi('clip',hoje>=meta?'var(--good)':'var(--s1)','Hoje',num(hoje)+' <small style="font-size:13px;color:var(--muted)">/ '+meta+'</small>',hoje>=meta?'🎯 meta do dia batida!':'faltam '+num(meta-hoje)+' hoje')}${kpi('chart','var(--s3)','Produzido no mês',num(feito),Math.round(pc)+'% da meta do mês')}${kpi('flag','var(--s4)','Meta do mês',num(metaMes),meta+' × '+uteis+' dias úteis')}${kpi('alert',falta?'var(--warn)':'var(--good)','Falta para a meta',falta?num(falta):'0 🎉',falta?(restam?'≈ '+num(porDia)+' por dia nos '+restam+' dias úteis que restam':'último dia!'):'meta do mês batida!')}</div>
+        <div class="hbar"><div class="hbar-h"><span>Progresso do mês</span><span style="color:${adiant>=0?'var(--good)':'var(--warn)'}">${adiant>=0?'▲ '+num(adiant)+' à frente do ritmo':'▼ '+num(-adiant)+' atrás do ritmo'}</span></div><div class="hbar-tr" style="height:12px"><i style="width:${Math.max(1,pc)}%;background:${pc>=100?'var(--good)':'linear-gradient(90deg,var(--s1),var(--s3))'}"></i></div></div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:16px;padding-top:6px;border-top:1px solid var(--border)">${dias.map(d=>{const v=porD[dkey(d)]||0,util=ehUtil(d);return`<div title="${fdate(d)}: ${num(v)}" style="flex:1;min-width:4px;height:${Math.max(2,v/mx*100)}%;border-radius:3px 3px 0 0;background:${v>=meta?'var(--good)':v?'var(--s1)':util?'var(--surface-3)':'transparent'};opacity:${util||v?1:.4}"></div>`}).join('')}</div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px"><span>dia 1</span><span>verde = meta do dia batida</span><span>hoje</span></div>`};
+    el.innerHTML=cardH(w,CAT.meu_mes,(souMontador?'':`<select data-q style="margin-bottom:12px">${P.montadores.map(m=>`<option${m===quem?' selected':''}>${esc(m)}</option>`).join('')}</select>`)+'<div data-c></div>');
+    const sq=$('[data-q]',el);if(sq)sq.onchange=()=>{quem=window.__montSel=sq.value;desenha()};desenha()}},
   form_montagem:{nome:'Lançar produção da montagem',setores:['montagem'],desc:'Cada montador lança quanto montou no dia',render(el,w){
     const c=CFG(),prods=(c.produtos&&c.produtos.length?c.produtos:['MONTAGEM']),hojeIso=P.hoje.toISOString().slice(0,10);
-    el.innerHTML=cardH(w,CAT.form_montagem,`<div class="linha"><div><label>Data</label><input type="date" data-d value="${hojeIso}" max="${hojeIso}"></div><div><label>Montador</label><select data-m>${P.montadores.map(m=>`<option>${esc(m)}</option>`).join('')}<option value="__outro">+ outro nome…</option></select></div></div>
+    el.innerHTML=cardH(w,CAT.form_montagem,`<div class="linha"><div><label>Data</label><input type="date" data-d value="${hojeIso}" max="${hojeIso}"></div><div><label>Montador</label>${SESS.usuario.setor==='montagem'?`<input data-eu value="${esc(String(SESS.usuario.nome).toUpperCase())}" disabled>`:`<select data-m>${P.montadores.map(m=>`<option>${esc(m)}</option>`).join('')}<option value="__outro">+ outro nome…</option></select>`}</div></div>
       <div data-ow class="hide" style="margin-bottom:12px"><label>Nome do montador</label><input data-o placeholder="nome completo"></div>
       <div class="linha">${prods.length>1?`<div><label>O que montou</label><select data-p>${prods.map(p=>`<option>${esc(p)}</option>`).join('')}</select></div>`:''}<div><label>Quantidade montada</label><input type="number" min="0" data-q placeholder="0" style="font-size:20px;font-weight:800;height:50px"></div></div>
       <div data-prog style="margin:4px 0 14px"></div>
       <label>Observação</label><input data-obs placeholder="opcional (ex.: faltou material)"><div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn pri" data-ok style="height:44px;padding:0 22px">Gravar produção</button></div>`,null,'meta: '+c.meta+(c.meta_por==='setor'?' por dia (setor)':' por montador/dia'));
     const S=q=>$(q,el);
-    const prog=()=>{const d=S('[data-d]').value.split('-').reverse().join('/');const nome=S('[data-m]').value==='__outro'?String(S('[data-o]').value).toUpperCase():S('[data-m]').value;
+    const EU=SESS.usuario.setor==='montagem'?String(SESS.usuario.nome).trim().toUpperCase():null;
+    const nomeSel=()=>EU||(S('[data-m]').value==='__outro'?String(S('[data-o]').value).toUpperCase():S('[data-m]').value);
+    const prog=()=>{const d=S('[data-d]').value.split('-').reverse().join('/');const nome=nomeSel();
       const ja=P.mont.filter(r=>r.data===d&&(c.meta_por==='setor'||r.m===nome)).reduce((t,r)=>t+r.q,0);const novo=ja+int(S('[data-q]').value);const meta=c.meta_por==='setor'?int(c.meta):int(c.meta);const pc=Math.min(100,novo/meta*100);
       S('[data-prog]').innerHTML=`<div class="hbar-h"><span>${c.meta_por==='setor'?'Setor no dia':esc(nome||'—')}: <b>${num(novo)}</b> de ${num(meta)}${ja?` <small style="color:var(--muted)">(já lançado ${num(ja)})</small>`:''}</span><span style="color:${novo>=meta?'var(--good)':'var(--ink-2)'}">${novo>=meta?'🎯 meta batida!':Math.round(pc)+'%'}</span></div><div class="hbar-tr"><i style="width:${Math.max(1,pc)}%;background:${novo>=meta?'var(--good)':'var(--s1)'}"></i></div>`};
-    S('[data-m]').onchange=()=>{S('[data-ow]').classList.toggle('hide',S('[data-m]').value!=='__outro');prog()};['[data-q]','[data-o]'].forEach(q=>S(q).oninput=prog);S('[data-d]').onchange=prog;prog();
+    if(S('[data-m]'))S('[data-m]').onchange=()=>{S('[data-ow]').classList.toggle('hide',S('[data-m]').value!=='__outro');prog()};['[data-q]','[data-o]'].forEach(q=>S(q).oninput=prog);S('[data-d]').onchange=prog;prog();
     S('[data-ok]').onclick=async()=>{const q=S('[data-q]').value;if(q===''){toast('Informe a quantidade.',true);return S('[data-q]').focus()}
-      const nome=S('[data-m]').value==='__outro'?S('[data-o]').value:S('[data-m]').value;if(!String(nome).trim()){toast('Escolha o montador.',true);return}
+      const nome=nomeSel();if(!String(nome).trim()){toast('Escolha o montador.',true);return}
       const b=S('[data-ok]');b.disabled=true;const d=S('[data-d]').value.split('-');
       try{const r=await api('montagem',{data:d[2]+'/'+d[1]+'/'+d[0],montador:nome,produto:S('[data-p]')?S('[data-p]').value:prods[0],quantidade:q,observacao:S('[data-obs]').value});
         toast('✅ Produção gravada: '+r.gravado.montador+' · '+num(r.gravado.quantidade));await carregarDados();abrir(TELA)}catch(err){toast(err.message,true);b.disabled=false}}}},
@@ -989,12 +1051,14 @@ function editorMarca(main){
   <section class="card w metade"><div class="card-h"><span class="card-t">Produção · Montagem</span></div><div class="card-b">
     <div class="linha"><div><label>Meta diária</label><input type="number" min="1" data-cm value="${esc(ED.config.meta)}"></div><div><label>A meta vale</label><select data-cp><option value="montador"${ED.config.meta_por!=='setor'?' selected':''}>por montador</option><option value="setor"${ED.config.meta_por==='setor'?' selected':''}>para o setor inteiro</option></select></div></div>
     <label>O que eles montam (um por linha)</label><textarea rows="3" data-cpr>${esc((ED.config.produtos||[]).join('\n'))}</textarea>
-    <div style="font-size:12px;color:var(--muted);margin-top:6px">Com mais de um item, o lançamento pergunta o que foi montado.</div></div></section>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">Com mais de um item, o lançamento pergunta o que foi montado.</div>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" data-csab ${ED.config.sabado?'checked':''}> Sábado conta como dia útil na meta do mês</label></div></section>
   <section class="card w metade"><div class="card-h"><span class="card-t">Segurança do Trabalho</span></div><div class="card-b">
     <label>Avisar vencimento de EPI/CA com quantos dias de antecedência</label><input type="number" min="1" data-cdv value="${esc(ED.config.dias_aviso||30)}"></div></section></div>`;
   $('[data-cm]',main).oninput=e=>{ED.config.meta=int(e.target.value)||25;sujou(main,false)};
   $('[data-cp]',main).onchange=e=>{ED.config.meta_por=e.target.value;sujou(main,false)};
   $('[data-cpr]',main).oninput=e=>{ED.config.produtos=e.target.value.split('\n').map(x=>x.trim().toUpperCase()).filter(Boolean);sujou(main,false)};
+  $('[data-csab]',main).onchange=e=>{ED.config.sabado=e.target.checked;sujou(main,false)};
   $('[data-cdv]',main).oninput=e=>{ED.config.dias_aviso=int(e.target.value)||30;sujou(main,false)};
   const prev=()=>{const save=LAYOUT.mensagens;LAYOUT.mensagens=ED.mensagens;const x=msgDoDia();LAYOUT.mensagens=save;$('[data-mprev]',main).innerHTML=`<span class="emo">${x.emo}</span><span><b>Hoje:</b> ${esc(x.txt)}</span>`};prev();
   $$('[data-es]',main).forEach(b=>b.onclick=()=>{ED_SETOR=b.dataset.es;ED_TELA=0;renderEditor(main)});
