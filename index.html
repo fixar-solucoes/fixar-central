@@ -547,8 +547,11 @@ let DB=null,DEMO_ASS={}; // dados demo em memória
 /* ---------------------------------------------------------------- API */
 async function api(acao,corpo={}){
   if(DEMO)return demoApi(acao,{token:SESS&&SESS.token,...corpo});
-  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({acao,token:SESS&&SESS.token,...corpo})});
+  // gravações e login já pedem os dados atualizados na mesma resposta (uma ida ao servidor só)
+  const extra={dados:1,eu:1,sair:1,usuarios:1,ficha_epi:1}[acao]?{}:{com_dados:true};
+  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({acao,token:SESS&&SESS.token,...extra,...corpo})});
   const j=await r.json();
+  if(j.ok&&j.dados&&acao!=='dados')window.__dadosNovos={d:j.dados,t:Date.now()};
   if(!j.ok){if(j.erro==='SESSAO'){sair(true);throw new Error('Sua sessão expirou. Entre de novo.')}throw new Error(j.erro||'Erro')}
   return j;
 }
@@ -649,7 +652,11 @@ function boasVindas(){
 }
 const chaveDados=()=>'dados_'+((SESS&&SESS.usuario&&SESS.usuario.usuario)||'');
 function dadosGuardados(){if(DEMO)return null;try{const x=localStorage.getItem('fx_'+chaveDados());return x?JSON.parse(x):null}catch(e){return null}}
-async function carregarDados(){const r=await api('dados');DADOS=r.dados;prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}
+async function carregarDados(forcar){
+  const n=window.__dadosNovos;window.__dadosNovos=null;
+  if(!forcar&&n&&Date.now()-n.t<15000)DADOS=n.d;          // já veio junto com a gravação: não chama o servidor de novo
+  else DADOS=(await api('dados',forcar?{forcar:true}:{})).dados;
+  prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}
 function sair(silencioso){
   if(SESS&&!silencioso)api('sair').catch(()=>{});
   try{localStorage.removeItem('fx_'+chaveDados())}catch(e){}
@@ -758,7 +765,7 @@ function abrir(id){
 function topo(titulo,sub,dir){
   return `<div class="topo"><button class="btn ghost burger" onclick="document.getElementById('lado').classList.add('aberto')">${ico('menu')}</button><div><h1>${esc(titulo)}</h1>${sub?`<p>${sub}</p>`:''}</div><div class="dir">${dir||''}<button class="btn sm" data-atualizar title="Buscar dados novos">↻ Atualizar</button></div></div>`+(DEMO?'<div class="faixa-demo">Modo demonstração: os dados são de exemplo e nada é gravado na planilha.</div>':'');
 }
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-atualizar]');if(!b)return;b.disabled=true;try{await carregarDados();abrir(TELA);toast('Dados atualizados.')}catch(err){toast(err.message,true)}finally{b.disabled=false}});
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-atualizar]');if(!b)return;b.disabled=true;try{await carregarDados(true);abrir(TELA);toast('Dados atualizados.')}catch(err){toast(err.message,true)}finally{b.disabled=false}});
 
 /* ---------------------------------------------------------------- render de tela */
 function ctxDe(setor){
