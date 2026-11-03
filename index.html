@@ -647,8 +647,8 @@ function boasVindas(){
   $('#bMsg').textContent=m.emo+' '+m.txt;
   $('#bSetor').textContent=SETOR_NOME[u.setor]+(u.base?' · '+u.base:'');
   const bw=$('#bemvindo');bw.classList.remove('hide','fora');
-  const carregar=carregarDados();
-  setTimeout(async()=>{try{await carregar}catch(e){}bw.classList.add('fora');setTimeout(()=>bw.classList.add('hide'),400);abrirApp()},800);
+  const g=dadosGuardados(),carregar=carregarDados();carregar.catch(()=>{});if(g){DADOS=g;prep();carregar.then(()=>{if(!window.__mexeu)abrir(TELA)})}
+  setTimeout(async()=>{if(!g)try{await carregar}catch(e){}bw.classList.add('fora');setTimeout(()=>bw.classList.add('hide'),400);abrirApp()},800);
 }
 const chaveDados=()=>'dados_'+((SESS&&SESS.usuario&&SESS.usuario.usuario)||'');
 function dadosGuardados(){if(DEMO)return null;try{const x=localStorage.getItem('fx_'+chaveDados());return x?JSON.parse(x):null}catch(e){return null}}
@@ -868,7 +868,14 @@ const CAT={
       try{const r=await api('movimentar',{tipo,equipe:tipo==='ENTRADA'?'':S('[data-eq]').value,itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd})),nota:[S('[data-quem]').value.trim()&&(tipo==='ENTREGA'||tipo==='DEVOLUCAO')?(tipo==='ENTREGA'?'Retirou: ':'Devolveu: ')+S('[data-quem]').value.trim():'',S('[data-nota]').value.trim()].filter(Boolean).join(' · ')});
         toast('✅ '+TIPO_NOME[tipo]+' registrada: '+r.feitos.map(f=>f.qtd+'× '+f.material).join(', '));
         r.feitos.filter(f=>f.abaixo).forEach(f=>toast('⚠️ '+f.material+' ficou abaixo do mínimo ('+num(f.almox)+').',true));
-        cart=[];S('[data-nota]').value='';S('[data-quem]').value='';await carregarDados();abrir(TELA)}
+        // atualiza a tela na hora com o que já sabemos; a planilha recarrega em segundo plano
+        const eq=tipo==='ENTRADA'?'':N(S('[data-eq]').value),agr=new Date(),sal=(DADOS.saldo_equipes=DADOS.saldo_equipes||{});if(eq)sal[eq]=sal[eq]||{};
+        r.feitos.forEach(f=>{const it=(DADOS.estoque||[]).find(x=>N(x.codigo)===N(f.codigo)),q=int(f.qtd);
+          if(it)it.quantidade=String(f.almox!=null?f.almox:int(it.quantidade)+({ENTRADA:q,ENTREGA:-q,DEVOLUCAO:q}[tipo]||0));
+          if(eq){const k=N(f.codigo);sal[eq][k]=f.carro!=null?f.carro:(sal[eq][k]||0)+({ENTREGA:q,USO:-q,DEVOLUCAO:-q}[tipo]||0)}
+          (DADOS.movimentacoes=DADOS.movimentacoes||[]).push({data:fdate(agr),hora:agr.toTimeString().slice(0,5),tipo,codigo_material:f.codigo,quantidade:String(q),equipe:eq,responsavel:SESS.usuario.nome||''})});
+        cart=[];S('[data-nota]').value='';S('[data-quem]').value='';prep();abrir(TELA);
+        const sq=window.__sm=(window.__sm||0)+1;api('dados').then(x=>{if(sq!==window.__sm)return;DADOS=x.dados;prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}).catch(()=>{})}
       catch(err){toast(err.message,true)}finally{b.textContent='Confirmar '+TIPO_NOME[tipo].toLowerCase();b.disabled=!cart.length}};
     setTipo('ENTREGA')}},
   frota:{nome:'Frota e KM',setores:['almoxarifado'],desc:'Veículos, status e lançamento de KM',render(el,w){
