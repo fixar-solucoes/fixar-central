@@ -168,6 +168,9 @@ tr:last-child td{border-bottom:0}
 .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
 .seg button{border:0;background:none;padding:6px 11px;border-radius:6px;font-size:12px;font-weight:700;color:var(--muted)}
 .seg button.on{background:var(--surface-3);color:var(--ink)}
+[data-mov=sai] [data-tipos] button.on,[data-mov=sai] [data-ok]{background:var(--crit);color:#fff;border-color:var(--crit)}
+[data-mov=ent] [data-tipos] button.on,[data-mov=ent] [data-ok]{background:var(--good);color:#fff;border-color:var(--good)}
+.mov-dica{font-size:12.5px;color:var(--ink-2);margin:-6px 0 12px}.mov-info{display:block;font-size:11.5px;color:var(--muted)}.mov-info.neg{color:var(--crit);font-weight:700}
 .linha{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
 .toast{position:fixed;right:18px;bottom:18px;z-index:120;display:grid;gap:8px}
 .toast div{background:#18181b;border:1px solid var(--border-2);border-left:3px solid var(--good);padding:11px 14px;border-radius:10px;box-shadow:var(--shadow);font-size:13px;max-width:360px;animation:sobe .3s ease}
@@ -547,11 +550,8 @@ let DB=null,DEMO_ASS={}; // dados demo em memória
 /* ---------------------------------------------------------------- API */
 async function api(acao,corpo={}){
   if(DEMO)return demoApi(acao,{token:SESS&&SESS.token,...corpo});
-  // gravações e login já pedem os dados atualizados na mesma resposta (uma ida ao servidor só)
-  const extra={dados:1,eu:1,sair:1,usuarios:1,ficha_epi:1}[acao]?{}:{com_dados:true};
-  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({acao,token:SESS&&SESS.token,...extra,...corpo})});
+  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({acao,token:SESS&&SESS.token,...corpo})});
   const j=await r.json();
-  if(j.ok&&j.dados&&acao!=='dados')window.__dadosNovos={d:j.dados,t:Date.now()};
   if(!j.ok){if(j.erro==='SESSAO'){sair(true);throw new Error('Sua sessão expirou. Entre de novo.')}throw new Error(j.erro||'Erro')}
   return j;
 }
@@ -652,11 +652,7 @@ function boasVindas(){
 }
 const chaveDados=()=>'dados_'+((SESS&&SESS.usuario&&SESS.usuario.usuario)||'');
 function dadosGuardados(){if(DEMO)return null;try{const x=localStorage.getItem('fx_'+chaveDados());return x?JSON.parse(x):null}catch(e){return null}}
-async function carregarDados(forcar){
-  const n=window.__dadosNovos;window.__dadosNovos=null;
-  if(!forcar&&n&&Date.now()-n.t<15000)DADOS=n.d;          // já veio junto com a gravação: não chama o servidor de novo
-  else DADOS=(await api('dados',forcar?{forcar:true}:{})).dados;
-  prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}
+async function carregarDados(){const r=await api('dados');DADOS=r.dados;prep();if(!DEMO)try{localStorage.setItem('fx_'+chaveDados(),JSON.stringify(DADOS))}catch(e){}}
 function sair(silencioso){
   if(SESS&&!silencioso)api('sair').catch(()=>{});
   try{localStorage.removeItem('fx_'+chaveDados())}catch(e){}
@@ -765,7 +761,7 @@ function abrir(id){
 function topo(titulo,sub,dir){
   return `<div class="topo"><button class="btn ghost burger" onclick="document.getElementById('lado').classList.add('aberto')">${ico('menu')}</button><div><h1>${esc(titulo)}</h1>${sub?`<p>${sub}</p>`:''}</div><div class="dir">${dir||''}<button class="btn sm" data-atualizar title="Buscar dados novos">↻ Atualizar</button></div></div>`+(DEMO?'<div class="faixa-demo">Modo demonstração: os dados são de exemplo e nada é gravado na planilha.</div>':'');
 }
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-atualizar]');if(!b)return;b.disabled=true;try{await carregarDados(true);abrir(TELA);toast('Dados atualizados.')}catch(err){toast(err.message,true)}finally{b.disabled=false}});
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-atualizar]');if(!b)return;b.disabled=true;try{await carregarDados();abrir(TELA);toast('Dados atualizados.')}catch(err){toast(err.message,true)}finally{b.disabled=false}});
 
 /* ---------------------------------------------------------------- render de tela */
 function ctxDe(setor){
@@ -841,8 +837,8 @@ const CAT={
     $('[data-e]',el).onchange=f;f()}},
   form_mov:{nome:'Lançar movimento',setores:['almoxarifado'],desc:'Entrada, entrega, uso e devolução (substitui o bot)',render(el,w){
     let tipo='ENTREGA',cart=[];
-    el.innerHTML=cardH(w,CAT.form_mov,`<div class="seg" data-tipos style="margin-bottom:14px">${['ENTREGA','ENTRADA','USO','DEVOLUCAO'].map(t=>`<button type="button" data-t="${t}">${TIPO_NOME[t]}</button>`).join('')}</div>
-      <div class="linha"><div data-eqw><label>Equipe</label><select data-eq>${P.equipes.map(e=>`<option>${esc(e)}</option>`).join('')}</select></div><div><label>Nota / observação</label><input data-nota placeholder="opcional (ex.: NF 1234)"></div></div>
+    el.innerHTML=cardH(w,CAT.form_mov,`<div class="seg" data-tipos style="margin-bottom:14px">${['ENTREGA','ENTRADA','USO','DEVOLUCAO'].map(t=>`<button type="button" data-t="${t}">${TIPO_NOME[t]}</button>`).join('')}</div><div class="mov-dica" data-dica></div>
+      <div class="linha"><div data-eqw><label>Equipe</label><select data-eq>${P.equipes.map(e=>`<option>${esc(e)}</option>`).join('')}</select></div><div data-quemw><label data-queml>Quem retirou</label><input data-quem placeholder="nome (opcional)"></div><div><label>Nota / observação</label><input data-nota placeholder="opcional (ex.: NF 1234)"></div></div>
       <label>Material</label><div style="position:relative"><input data-busca placeholder="Digite nome ou código do material…" autocomplete="off"><div class="sug hide" data-sug></div></div>
       <ul class="carrinho" data-cart></ul><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><span data-res style="margin-right:auto;font-size:12.5px;color:var(--ink-2);align-self:center"></span><button class="btn" type="button" data-limpar>Limpar</button><button class="btn pri" type="button" data-ok disabled>Confirmar lançamento</button></div>`,null,'baixa e soma no estoque na hora');
     const S=s=>$(s,el);
@@ -851,22 +847,29 @@ const CAT={
       return base.filter(i=>!t||N(i.material+' '+i.codigo).includes(t)).slice(0,30)};
     const desenhaSug=()=>{const l=opcoes(),sg=S('[data-sug]');if(!S('[data-busca]').value&&document.activeElement!==S('[data-busca]')){sg.classList.add('hide');return}
       sg.innerHTML=l.length?l.map(i=>`<button type="button" data-cod="${esc(i.codigo)}"><span>${esc(i.material)} <small>${esc(i.codigo)}</small></span><small>${i.carro!=null?'no carro: '+num(i.carro):'almox: '+num(i.q)}</small></button>`).join(''):'<div class="vazio">Nenhum material'+(tipo==='USO'||tipo==='DEVOLUCAO'?' no carro desta equipe':'')+'.</div>';sg.classList.remove('hide')};
-    const desenhaCart=()=>{S('[data-cart]').innerHTML=cart.map((c,i)=>`<li><span>${esc(c.material)} <small style="color:var(--muted)">${esc(c.codigo)}</small></span><input type="number" min="1" value="${c.qtd}" data-q="${i}"><button class="ib" type="button" data-rm="${i}">${ico('x')}</button></li>`).join('');
+    const info=c=>{const q=int(c.qtd),al=int((P.est.find(i=>i.codigo===c.codigo)||{}).q),ca=(P.saldo[S('[data-eq]').value]||{})[N(c.codigo)]||0;
+      const p={ENTREGA:[['Almox',al,al-q],['Equipe',ca,ca+q]],ENTRADA:[['Almox',al,al+q]],USO:[['Equipe',ca,ca-q]],DEVOLUCAO:[['Equipe',ca,ca-q],['Almox',al,al+q]]}[tipo];
+      return{neg:p.some(x=>x[2]<0),txt:p.map(x=>x[0]+': '+num(x[1])+' → '+num(x[2])).join(' · ')}};
+    const desenhaCart=()=>{S('[data-cart]').innerHTML=cart.map((c,i)=>{const f=info(c);return`<li><span>${esc(c.material)} <small style="color:var(--muted)">${esc(c.codigo)}</small><small class="mov-info${f.neg?' neg':''}" data-inf="${i}">${f.txt}</small></span><input type="number" min="1" value="${c.qtd}" data-q="${i}"><button class="ib" type="button" data-rm="${i}">${ico('x')}</button></li>`}).join('');
       S('[data-ok]').disabled=!cart.length;S('[data-res]').textContent=cart.length?cart.length+' item(ns) no lançamento':'Escolha os materiais acima.';
-      $$('[data-q]',el).forEach(x=>x.oninput=()=>cart[x.dataset.q].qtd=int(x.value));$$('[data-rm]',el).forEach(x=>x.onclick=()=>{cart.splice(x.dataset.rm,1);desenhaCart()})};
-    const setTipo=t=>{tipo=t;$$('[data-t]',el).forEach(b=>b.classList.toggle('on',b.dataset.t===t));S('[data-eqw]').style.visibility=t==='ENTRADA'?'hidden':'visible';cart=[];desenhaCart()};
+      $$('[data-q]',el).forEach(x=>x.oninput=()=>{cart[x.dataset.q].qtd=int(x.value);const f=info(cart[x.dataset.q]),s=$('[data-inf="'+x.dataset.q+'"]',el);s.textContent=f.txt;s.classList.toggle('neg',f.neg)});$$('[data-rm]',el).forEach(x=>x.onclick=()=>{cart.splice(x.dataset.rm,1);desenhaCart()})};
+    const setTipo=t=>{tipo=t;$$('[data-t]',el).forEach(b=>b.classList.toggle('on',b.dataset.t===t));S('[data-eqw]').style.visibility=t==='ENTRADA'?'hidden':'visible';
+      el.dataset.mov=(t==='ENTREGA'||t==='USO')?'sai':'ent';
+      S('[data-dica]').textContent={ENTREGA:'⬆ Sai do almoxarifado e vai para o carro da equipe',ENTRADA:'⬇ Chega material no almoxarifado (compra / NF)',USO:'⬆ A equipe usou na obra — sai do carro dela',DEVOLUCAO:'⬇ A equipe devolveu — sai do carro e volta para o almoxarifado'}[t];
+      S('[data-quemw]').style.display=(t==='ENTREGA'||t==='DEVOLUCAO')?'':'none';S('[data-queml]').textContent=t==='ENTREGA'?'Quem retirou':'Quem devolveu';
+      S('[data-ok]').textContent='Confirmar '+TIPO_NOME[t].toLowerCase();cart=[];desenhaCart()};
     $$('[data-t]',el).forEach(b=>b.onclick=()=>setTipo(b.dataset.t));
     S('[data-busca]').oninput=desenhaSug;S('[data-busca]').onfocus=desenhaSug;
     S('[data-busca]').onblur=()=>setTimeout(()=>S('[data-sug]').classList.add('hide'),180);
     S('[data-sug]').onmousedown=e=>{const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
-    S('[data-eq]').onchange=()=>{if(tipo==='USO'||tipo==='DEVOLUCAO'){cart=[];desenhaCart()}};
+    S('[data-eq]').onchange=()=>{if(tipo==='USO'||tipo==='DEVOLUCAO')cart=[];desenhaCart()};
     S('[data-limpar]').onclick=()=>{cart=[];desenhaCart()};
     S('[data-ok]').onclick=async()=>{const b=S('[data-ok]');b.disabled=true;b.textContent='Gravando…';
-      try{const r=await api('movimentar',{tipo,equipe:tipo==='ENTRADA'?'':S('[data-eq]').value,itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd})),nota:S('[data-nota]').value});
+      try{const r=await api('movimentar',{tipo,equipe:tipo==='ENTRADA'?'':S('[data-eq]').value,itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd})),nota:[S('[data-quem]').value.trim()&&(tipo==='ENTREGA'||tipo==='DEVOLUCAO')?(tipo==='ENTREGA'?'Retirou: ':'Devolveu: ')+S('[data-quem]').value.trim():'',S('[data-nota]').value.trim()].filter(Boolean).join(' · ')});
         toast('✅ '+TIPO_NOME[tipo]+' registrada: '+r.feitos.map(f=>f.qtd+'× '+f.material).join(', '));
         r.feitos.filter(f=>f.abaixo).forEach(f=>toast('⚠️ '+f.material+' ficou abaixo do mínimo ('+num(f.almox)+').',true));
-        cart=[];S('[data-nota]').value='';await carregarDados();abrir(TELA)}
-      catch(err){toast(err.message,true)}finally{b.textContent='Confirmar lançamento';b.disabled=!cart.length}};
+        cart=[];S('[data-nota]').value='';S('[data-quem]').value='';await carregarDados();abrir(TELA)}
+      catch(err){toast(err.message,true)}finally{b.textContent='Confirmar '+TIPO_NOME[tipo].toLowerCase();b.disabled=!cart.length}};
     setTipo('ENTREGA')}},
   frota:{nome:'Frota e KM',setores:['almoxarifado'],desc:'Veículos, status e lançamento de KM',render(el,w){
     const v=(DADOS.veiculos||[]);const hj=fdate(P.hoje);
