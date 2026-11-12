@@ -569,7 +569,11 @@ async function demoApi(acao,c){
   if(acao==='dados'){const L={master:Object.keys(DB),almoxarifado:['estoque','movimentacoes','veiculos','medidores','equipes','limites_carro','funcionarios','epi_cadastro','entregas_funcionario','inventarios'],seguranca:['estoque','funcionarios','epi_cadastro','entregas_funcionario'],montagem:['producao_montagem','funcionarios'],gerente_base:['fechamento_bases','fechamento_producao','metas_bases']}[u.setor];
     const out={};L.forEach(k=>{let v=DB[k].map(o=>({...o}));if(u.setor==='gerente_base'&&k!=='equipes')v=v.filter(r=>N(r.base)===N(u.base));out[k]=v});
     if(u.setor==='master'||u.setor==='almoxarifado')out.saldo_equipes=saldoEq(DB.movimentacoes);out.agora=agora();return{dados:out}}
-  if(acao==='movimentar'){const ef={ENTRADA:[1,0],ENTREGA:[-1,1],USO:[0,-1],DEVOLUCAO:[1,-1]}[c.tipo];const eq=N(c.equipe);const sal=saldoEq(DB.movimentacoes)[eq]||{};
+  if(acao==='movimentar'){c.itens=c.itens.map(i=>{if(!i.novo)return i;const nome=N(i.novo.material);let it=DB.estoque.find(x=>N(x.material)===nome);
+      if(!it){let n=DB.estoque.length+1,cod;do{cod='NOVO'+String(n++).padStart(3,'0')}while(DB.estoque.some(x=>x.codigo===cod));it={codigo:cod,material:nome,categoria:N(i.novo.categoria)||'OUTROS',unidade:N(i.novo.unidade)||'UN',quantidade:'0',estoque_minimo:i.novo.estoque_minimo||'',valor_unitario:i.novo.valor_unitario||'',prateleira:'',posicao:''};DB.estoque.push(it)}
+      if(c.tipo==='ENTREGA'&&int(it.quantidade)<int(i.qtd)){const t=agora();DB.movimentacoes.push({data:t.data,hora:t.hora,tipo:'ENTRADA',codigo_material:it.codigo,quantidade:String(int(i.qtd)-int(it.quantidade)),equipe:'',veiculo:'',responsavel:u.nome,nota:'ENTRADA AUTOMATICA - MATERIAL NOVO LANCADO NA ENTREGA'});it.quantidade=String(int(i.qtd))}
+      return{codigo:it.codigo,qtd:i.qtd}});
+    const ef={ENTRADA:[1,0],ENTREGA:[-1,1],USO:[0,-1],DEVOLUCAO:[1,-1]}[c.tipo];const eq=N(c.equipe);const sal=saldoEq(DB.movimentacoes)[eq]||{};
     const plano=c.itens.map(i=>{const it=DB.estoque.find(x=>N(x.codigo)===N(i.codigo));const q=int(i.qtd);const g=int(it.quantidade),car=sal[N(i.codigo)]||0;
       if(ef[0]<0&&g<q)throw new Error('Almoxarifado tem '+g+' de '+it.material+' e foram pedidos '+q+'.');if(ef[1]<0&&car<q)throw new Error(eq+' está com '+car+' de '+it.material+' e foram lançados '+q+'.');return{it,q,g,car}});
     const {data,hora}=agora();const feitos=plano.map(p=>{DB.movimentacoes.push({data,hora,tipo:c.tipo,codigo_material:p.it.codigo,quantidade:String(p.q),equipe:eq,veiculo:'',responsavel:u.nome,nota:c.nota||''});const novo=p.g+ef[0]*p.q;if(ef[0])p.it.quantidade=String(novo);return{codigo:p.it.codigo,material:p.it.material,qtd:p.q,almox:novo,carro:ef[1]?p.car+ef[1]*p.q:null,abaixo:ef[0]<0&&novo<int(p.it.estoque_minimo)}});return{feitos}}
@@ -840,37 +844,60 @@ const CAT={
     el.innerHTML=cardH(w,CAT.form_mov,`<div class="seg" data-tipos style="margin-bottom:14px">${['ENTREGA','ENTRADA','USO','DEVOLUCAO'].map(t=>`<button type="button" data-t="${t}">${TIPO_NOME[t]}</button>`).join('')}</div><div class="mov-dica" data-dica></div>
       <div class="linha"><div data-eqw><label>Equipe</label><select data-eq>${P.equipes.map(e=>`<option>${esc(e)}</option>`).join('')}</select></div><div data-quemw><label data-queml>Quem retirou</label><input data-quem placeholder="nome (opcional)"></div><div><label>Nota / observação</label><input data-nota placeholder="opcional (ex.: NF 1234)"></div></div>
       <label>Material</label><div style="position:relative"><input data-busca placeholder="Digite nome ou código do material…" autocomplete="off"><div class="sug hide" data-sug></div></div>
+      <button type="button" data-novolink style="margin-top:6px;color:var(--accent);font-size:13px;background:none;border:0;padding:4px 0;cursor:pointer">➕ Material não está na lista? Cadastrar novo</button>
+      <div class="hide" data-novow style="margin-top:10px;padding:12px;border:1px dashed var(--accent);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">➕ Material novo <small style="color:var(--muted);font-weight:400">— vai ser cadastrado no estoque com código automático</small></div>
+        <div class="linha"><div style="flex:2"><label>Nome do material</label><input data-nv="material" placeholder="Ex.: CABO FLEX 10MM PRETO"></div>
+        <div><label>Categoria</label><input data-nv="categoria" list="dl-cat-novo" placeholder="escolha ou digite"><datalist id="dl-cat-novo">${[...new Set(P.est.map(i=>i.categoria).filter(Boolean))].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist></div>
+        <div><label>Unidade</label><input data-nv="unidade" list="dl-un-novo" value="UN"><datalist id="dl-un-novo">${[...new Set(['UN','PC','M','KG','CX','RL','PAR','L'].concat(P.est.map(i=>i.unidade).filter(Boolean)))].map(c=>`<option>${esc(c)}</option>`).join('')}</datalist></div></div>
+        <div class="linha"><div><label>Valor unitário (R$)</label><input data-nv="valor_unitario" inputmode="decimal" placeholder="opcional"></div><div><label>Estoque mínimo</label><input data-nv="estoque_minimo" type="number" min="0" placeholder="opcional"></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px"><button class="btn" type="button" data-nvx>Cancelar</button><button class="btn pri" type="button" data-nvok>Adicionar ao lançamento</button></div>
+      </div>
       <ul class="carrinho" data-cart></ul><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><span data-res style="margin-right:auto;font-size:12.5px;color:var(--ink-2);align-self:center"></span><button class="btn" type="button" data-limpar>Limpar</button><button class="btn pri" type="button" data-ok disabled>Confirmar lançamento</button></div>`,null,'baixa e soma no estoque na hora');
     const S=s=>$(s,el);
     const opcoes=()=>{const t=N(S('[data-busca]').value);let base=P.est;
       if(tipo==='USO'||tipo==='DEVOLUCAO'){const sal=P.saldo[S('[data-eq]').value]||{};base=P.est.filter(i=>sal[N(i.codigo)]>0).map(i=>({...i,carro:sal[N(i.codigo)]}))}
       return base.filter(i=>!t||N(i.material+' '+i.codigo).includes(t)).slice(0,30)};
-    const desenhaSug=()=>{const l=opcoes(),sg=S('[data-sug]');if(!S('[data-busca]').value&&document.activeElement!==S('[data-busca]')){sg.classList.add('hide');return}
-      sg.innerHTML=l.length?l.map(i=>`<button type="button" data-cod="${esc(i.codigo)}"><span>${esc(i.material)} <small>${esc(i.codigo)}</small></span><small>${i.carro!=null?'no carro: '+num(i.carro):'almox: '+num(i.q)}</small></button>`).join(''):'<div class="vazio">Nenhum material'+(tipo==='USO'||tipo==='DEVOLUCAO'?' no carro desta equipe':'')+'.</div>';sg.classList.remove('hide')};
-    const info=c=>{const q=int(c.qtd),al=int((P.est.find(i=>i.codigo===c.codigo)||{}).q),ca=(P.saldo[S('[data-eq]').value]||{})[N(c.codigo)]||0;
+    const desenhaSug=()=>{const l=opcoes(),sg=S('[data-sug]'),txt=S('[data-busca]').value.trim();if(!txt&&document.activeElement!==S('[data-busca]')){sg.classList.add('hide');return}
+      const podeNovo=(tipo==='ENTRADA'||tipo==='ENTREGA')&&txt.length>=2&&!P.est.some(i=>N(i.material)===N(txt));
+      const bNovo=podeNovo?`<button type="button" data-novo style="color:var(--accent)"><span>➕ Não está na lista? Cadastrar <b>“${esc(txt)}”</b></span><small>material novo</small></button>`:'';
+      sg.innerHTML=(!l.length&&bNovo)?bNovo:(l.length?l.map(i=>`<button type="button" data-cod="${esc(i.codigo)}"><span>${esc(i.material)} <small>${esc(i.codigo)}</small></span><small>${i.carro!=null?'no carro: '+num(i.carro):'almox: '+num(i.q)}</small></button>`).join(''):'<div class="vazio">Nenhum material'+(tipo==='USO'||tipo==='DEVOLUCAO'?' no carro desta equipe':'')+'.</div>')+bNovo;sg.classList.remove('hide')};
+    const info=c=>{if(c.novo){const q=int(c.qtd);return{neg:false,txt:tipo==='ENTRADA'?'Material novo · Almox: 0 → '+num(q):'Material novo · entra '+num(q)+' no almox e vai para a equipe'}}const q=int(c.qtd),al=int((P.est.find(i=>i.codigo===c.codigo)||{}).q),ca=(P.saldo[S('[data-eq]').value]||{})[N(c.codigo)]||0;
       const p={ENTREGA:[['Almox',al,al-q],['Equipe',ca,ca+q]],ENTRADA:[['Almox',al,al+q]],USO:[['Equipe',ca,ca-q]],DEVOLUCAO:[['Equipe',ca,ca-q],['Almox',al,al+q]]}[tipo];
       return{neg:p.some(x=>x[2]<0),txt:p.map(x=>x[0]+': '+num(x[1])+' → '+num(x[2])).join(' · ')}};
-    const desenhaCart=()=>{S('[data-cart]').innerHTML=cart.map((c,i)=>{const f=info(c);return`<li><span>${esc(c.material)} <small style="color:var(--muted)">${esc(c.codigo)}</small><small class="mov-info${f.neg?' neg':''}" data-inf="${i}">${f.txt}</small></span><input type="number" min="1" value="${c.qtd}" data-q="${i}"><button class="ib" type="button" data-rm="${i}">${ico('x')}</button></li>`}).join('');
+    const desenhaCart=()=>{S('[data-cart]').innerHTML=cart.map((c,i)=>{const f=info(c);return`<li><span>${esc(c.material)} <small style="color:var(--muted)">${c.novo?'<b style="color:var(--accent)">NOVO</b>':esc(c.codigo)}</small><small class="mov-info${f.neg?' neg':''}" data-inf="${i}">${f.txt}</small></span><input type="number" min="1" value="${c.qtd}" data-q="${i}"><button class="ib" type="button" data-rm="${i}">${ico('x')}</button></li>`}).join('');
       S('[data-ok]').disabled=!cart.length;S('[data-res]').textContent=cart.length?cart.length+' item(ns) no lançamento':'Escolha os materiais acima.';
       $$('[data-q]',el).forEach(x=>x.oninput=()=>{cart[x.dataset.q].qtd=int(x.value);const f=info(cart[x.dataset.q]),s=$('[data-inf="'+x.dataset.q+'"]',el);s.textContent=f.txt;s.classList.toggle('neg',f.neg)});$$('[data-rm]',el).forEach(x=>x.onclick=()=>{cart.splice(x.dataset.rm,1);desenhaCart()})};
     const setTipo=t=>{tipo=t;$$('[data-t]',el).forEach(b=>b.classList.toggle('on',b.dataset.t===t));S('[data-eqw]').style.visibility=t==='ENTRADA'?'hidden':'visible';
       el.dataset.mov=(t==='ENTREGA'||t==='USO')?'sai':'ent';
       S('[data-dica]').textContent={ENTREGA:'⬆ Sai do almoxarifado e vai para o carro da equipe',ENTRADA:'⬇ Chega material no almoxarifado (compra / NF)',USO:'⬆ A equipe usou na obra — sai do carro dela',DEVOLUCAO:'⬇ A equipe devolveu — sai do carro e volta para o almoxarifado'}[t];
       S('[data-quemw]').style.display=(t==='ENTREGA'||t==='DEVOLUCAO')?'':'none';S('[data-queml]').textContent=t==='ENTREGA'?'Quem retirou':'Quem devolveu';
-      S('[data-ok]').textContent='Confirmar '+TIPO_NOME[t].toLowerCase();cart=[];desenhaCart()};
+      S('[data-ok]').textContent='Confirmar '+TIPO_NOME[t].toLowerCase();cart=[];S('[data-novow]').classList.add('hide');S('[data-novolink]').style.display=(t==='ENTRADA'||t==='ENTREGA')?'':'none';desenhaCart()};
     $$('[data-t]',el).forEach(b=>b.onclick=()=>setTipo(b.dataset.t));
     S('[data-busca]').oninput=desenhaSug;S('[data-busca]').onfocus=desenhaSug;
     S('[data-busca]').onblur=()=>setTimeout(()=>S('[data-sug]').classList.add('hide'),180);
-    S('[data-sug]').onmousedown=e=>{const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
+    const abrirNovo=nome=>{const w=S('[data-novow]');$$('[data-nv]',w).forEach(x=>x.value=x.dataset.nv==='unidade'?'UN':'');$('[data-nv="material"]',w).value=String(nome||'').toUpperCase();w.classList.remove('hide');S('[data-busca]').value='';S('[data-sug]').classList.add('hide');setTimeout(()=>$('[data-nv="categoria"]',w).focus(),0)};
+    S('[data-novolink]').onclick=()=>abrirNovo(S('[data-busca]').value.trim());
+    S('[data-nvx]').onclick=()=>S('[data-novow]').classList.add('hide');
+    S('[data-nvok]').onclick=()=>{const w=S('[data-novow]'),d={};$$('[data-nv]',w).forEach(x=>d[x.dataset.nv]=x.value.trim());d.material=d.material.toUpperCase().replace(/\s+/g,' ');
+      if(d.material.length<3){toast('Digite o nome do material.',true);return $('[data-nv="material"]',w).focus()}
+      const ja=P.est.find(i=>N(i.material)===N(d.material));
+      if(ja){if(!cart.find(c=>c.codigo===ja.codigo))cart.push({codigo:ja.codigo,material:ja.material,qtd:1});toast('Esse material já existe no estoque — usei o cadastrado ('+ja.codigo+').')}
+      else if(!cart.find(c=>c.novo&&N(c.material)===N(d.material)))cart.push({codigo:'NOVO-'+Date.now(),material:d.material,novo:d,qtd:1});
+      w.classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
+    S('[data-sug]').onmousedown=e=>{const bn=e.target.closest('[data-novo]');if(bn){e.preventDefault();return abrirNovo(S('[data-busca]').value.trim())}const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
     S('[data-eq]').onchange=()=>{if(tipo==='USO'||tipo==='DEVOLUCAO')cart=[];desenhaCart()};
     S('[data-limpar]').onclick=()=>{cart=[];desenhaCart()};
     S('[data-ok]').onclick=async()=>{const b=S('[data-ok]');b.disabled=true;b.textContent='Gravando…';
-      try{const r=await api('movimentar',{tipo,equipe:tipo==='ENTRADA'?'':S('[data-eq]').value,itens:cart.map(c=>({codigo:c.codigo,qtd:c.qtd})),nota:[S('[data-quem]').value.trim()&&(tipo==='ENTREGA'||tipo==='DEVOLUCAO')?(tipo==='ENTREGA'?'Retirou: ':'Devolveu: ')+S('[data-quem]').value.trim():'',S('[data-nota]').value.trim()].filter(Boolean).join(' · ')});
+      try{const r=await api('movimentar',{tipo,equipe:tipo==='ENTRADA'?'':S('[data-eq]').value,itens:cart.map(c=>c.novo?{novo:c.novo,qtd:c.qtd}:{codigo:c.codigo,qtd:c.qtd}),nota:[S('[data-quem]').value.trim()&&(tipo==='ENTREGA'||tipo==='DEVOLUCAO')?(tipo==='ENTREGA'?'Retirou: ':'Devolveu: ')+S('[data-quem]').value.trim():'',S('[data-nota]').value.trim()].filter(Boolean).join(' · ')});
         toast('✅ '+TIPO_NOME[tipo]+' registrada: '+r.feitos.map(f=>f.qtd+'× '+f.material).join(', '));
+        if(cart.some(c=>c.novo))toast('📦 Material novo cadastrado no estoque: '+r.feitos.filter(f=>cart.some(c=>c.novo&&N(c.material)===N(f.material))).map(f=>f.material+' ('+f.codigo+')').join(', '));
         r.feitos.filter(f=>f.abaixo).forEach(f=>toast('⚠️ '+f.material+' ficou abaixo do mínimo ('+num(f.almox)+').',true));
         // atualiza a tela na hora com o que já sabemos; a planilha recarrega em segundo plano
         const eq=tipo==='ENTRADA'?'':N(S('[data-eq]').value),agr=new Date(),sal=(DADOS.saldo_equipes=DADOS.saldo_equipes||{});if(eq)sal[eq]=sal[eq]||{};
         r.feitos.forEach(f=>{const it=(DADOS.estoque||[]).find(x=>N(x.codigo)===N(f.codigo)),q=int(f.qtd);
+          const nv=!it&&cart.find(c=>c.novo&&N(c.material)===N(f.material));if(nv)(DADOS.estoque=DADOS.estoque||[]).push({codigo:f.codigo,material:f.material,categoria:N(nv.novo.categoria)||'OUTROS',unidade:N(nv.novo.unidade)||'UN',quantidade:String(f.almox!=null?f.almox:0),estoque_minimo:nv.novo.estoque_minimo||'',valor_unitario:nv.novo.valor_unitario||'',prateleira:'',posicao:''});
           if(it)it.quantidade=String(f.almox!=null?f.almox:int(it.quantidade)+({ENTRADA:q,ENTREGA:-q,DEVOLUCAO:q}[tipo]||0));
           if(eq){const k=N(f.codigo);sal[eq][k]=f.carro!=null?f.carro:(sal[eq][k]||0)+({ENTREGA:q,USO:-q,DEVOLUCAO:-q}[tipo]||0)}
           (DADOS.movimentacoes=DADOS.movimentacoes||[]).push({data:fdate(agr),hora:agr.toTimeString().slice(0,5),tipo,codigo_material:f.codigo,quantidade:String(q),equipe:eq,responsavel:SESS.usuario.nome||''})});
