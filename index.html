@@ -851,6 +851,7 @@ const CAT={
         <div><label>Unidade</label><input data-nv="unidade" list="dl-un-novo" value="UN"><datalist id="dl-un-novo">${[...new Set(['UN','PC','M','KG','CX','RL','PAR','L'].concat(P.est.map(i=>i.unidade).filter(Boolean)))].map(c=>`<option>${esc(c)}</option>`).join('')}</datalist></div></div>
         <div class="linha"><div><label>Valor unitário (R$)</label><input data-nv="valor_unitario" inputmode="decimal" placeholder="opcional"></div><div><label>Estoque mínimo</label><input data-nv="estoque_minimo" type="number" min="0" placeholder="opcional"></div>
         </div>
+        <div class="hide" data-parec style="margin-top:10px;padding:10px;border:1px solid var(--s4);border-radius:var(--r-sm)"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px"><button class="btn" type="button" data-nvx>Cancelar</button><button class="btn pri" type="button" data-nvok>Adicionar ao lançamento</button></div>
       </div>
       <ul class="carrinho" data-cart></ul><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><span data-res style="margin-right:auto;font-size:12.5px;color:var(--ink-2);align-self:center"></span><button class="btn" type="button" data-limpar>Limpar</button><button class="btn pri" type="button" data-ok disabled>Confirmar lançamento</button></div>`,null,'baixa e soma no estoque na hora');
@@ -859,8 +860,9 @@ const CAT={
       if(tipo==='USO'||tipo==='DEVOLUCAO'){const sal=P.saldo[S('[data-eq]').value]||{};base=P.est.filter(i=>sal[N(i.codigo)]>0).map(i=>({...i,carro:sal[N(i.codigo)]}))}
       return base.filter(i=>!t||N(i.material+' '+i.codigo).includes(t)).slice(0,30)};
     const desenhaSug=()=>{const l=opcoes(),sg=S('[data-sug]'),txt=S('[data-busca]').value.trim();if(!txt&&document.activeElement!==S('[data-busca]')){sg.classList.add('hide');return}
-      const podeNovo=(tipo==='ENTRADA'||tipo==='ENTREGA')&&txt.length>=2&&!P.est.some(i=>N(i.material)===N(txt));
-      const bNovo=podeNovo?`<button type="button" data-novo><span>Cadastrar novo material: <b>${esc(txt)}</b></span><small>não está na lista</small></button>`:'';
+      const naoTem=txt.length>=2&&!P.est.some(i=>N(i.material)===N(txt));
+      const bNovo=(tipo==='ENTRADA'&&naoTem)?`<button type="button" data-novo><span>Cadastrar novo material: <b>${esc(txt)}</b></span><small>não está na lista</small></button>`
+        :(tipo==='ENTREGA'&&naoTem&&!l.length)?`<button type="button" data-irent><span>Material novo? <b>Cadastre primeiro pela Entrada</b></span><small>ir para Entrada</small></button>`:'';
       sg.innerHTML=(!l.length&&bNovo)?bNovo:(l.length?l.map(i=>`<button type="button" data-cod="${esc(i.codigo)}"><span>${esc(i.material)} <small>${esc(i.codigo)}</small></span><small>${i.carro!=null?'no carro: '+num(i.carro):'almox: '+num(i.q)}</small></button>`).join(''):'<div class="vazio">Nenhum material'+(tipo==='USO'||tipo==='DEVOLUCAO'?' no carro desta equipe':'')+'.</div>')+bNovo;sg.classList.remove('hide')};
     const info=c=>{if(c.novo){const q=int(c.qtd);return{neg:false,txt:tipo==='ENTRADA'?'Material novo · Almox: 0 → '+num(q):'Material novo · entra '+num(q)+' no almox e vai para a equipe'}}const q=int(c.qtd),al=int((P.est.find(i=>i.codigo===c.codigo)||{}).q),ca=(P.saldo[S('[data-eq]').value]||{})[N(c.codigo)]||0;
       const p={ENTREGA:[['Almox',al,al-q],['Equipe',ca,ca+q]],ENTRADA:[['Almox',al,al+q]],USO:[['Equipe',ca,ca-q]],DEVOLUCAO:[['Equipe',ca,ca-q],['Almox',al,al+q]]}[tipo];
@@ -872,20 +874,28 @@ const CAT={
       el.dataset.mov=(t==='ENTREGA'||t==='USO')?'sai':'ent';
       S('[data-dica]').textContent={ENTREGA:'Saída do almoxarifado para o carro da equipe.',ENTRADA:'Entrada no almoxarifado (compra / NF).',USO:'Consumo em obra: baixa do carro da equipe.',DEVOLUCAO:'Devolução: sai do carro e volta para o almoxarifado'}[t];
       S('[data-quemw]').style.display=(t==='ENTREGA'||t==='DEVOLUCAO')?'':'none';S('[data-queml]').textContent=t==='ENTREGA'?'Quem retirou':'Quem devolveu';
-      S('[data-ok]').textContent='Confirmar '+TIPO_NOME[t].toLowerCase();cart=[];S('[data-novow]').classList.add('hide');S('[data-novolink]').style.display=(t==='ENTRADA'||t==='ENTREGA')?'':'none';desenhaCart()};
+      S('[data-ok]').textContent='Confirmar '+TIPO_NOME[t].toLowerCase();cart=[];S('[data-novow]').classList.add('hide');S('[data-novolink]').style.display=t==='ENTRADA'?'':'none';desenhaCart()};
     $$('[data-t]',el).forEach(b=>b.onclick=()=>setTipo(b.dataset.t));
     S('[data-busca]').oninput=desenhaSug;S('[data-busca]').onfocus=desenhaSug;
     S('[data-busca]').onblur=()=>setTimeout(()=>S('[data-sug]').classList.add('hide'),180);
-    const abrirNovo=nome=>{const w=S('[data-novow]');$$('[data-nv]',w).forEach(x=>x.value=x.dataset.nv==='unidade'?'UN':'');$('[data-nv="material"]',w).value=String(nome||'').toUpperCase();w.classList.remove('hide');S('[data-busca]').value='';S('[data-sug]').classList.add('hide');setTimeout(()=>$('[data-nv="categoria"]',w).focus(),0)};
+    const parecidos=nome=>{const tk=x=>N(x).replace(/[^A-Z0-9]+/g,' ').trim().split(' ').filter(Boolean);const a=tk(nome);if(!a.length)return[];
+      return P.est.map(i=>{const b=tk(i.material),com=a.filter(t=>b.includes(t)),forte=com.some(t=>t.length>=3);const sc=com.length/Math.min(a.length,b.length||1);
+        return{i,sc:forte?sc:0}}).filter(x=>x.sc>=0.5).sort((x,y)=>y.sc-x.sc).slice(0,5).map(x=>x.i)};
+    let nvJaAvisou='';
+    const abrirNovo=nome=>{const w=S('[data-novow]');nvJaAvisou='';S('[data-parec]').classList.add('hide');$$('[data-nv]',w).forEach(x=>x.value=x.dataset.nv==='unidade'?'UN':'');$('[data-nv="material"]',w).value=String(nome||'').toUpperCase();w.classList.remove('hide');S('[data-busca]').value='';S('[data-sug]').classList.add('hide');setTimeout(()=>$('[data-nv="categoria"]',w).focus(),0)};
     S('[data-novolink]').onclick=()=>abrirNovo(S('[data-busca]').value.trim());
     S('[data-nvx]').onclick=()=>S('[data-novow]').classList.add('hide');
     S('[data-nvok]').onclick=()=>{const w=S('[data-novow]'),d={};$$('[data-nv]',w).forEach(x=>d[x.dataset.nv]=x.value.trim());d.material=d.material.toUpperCase().replace(/\s+/g,' ');
       if(d.material.length<3){toast('Digite o nome do material.',true);return $('[data-nv="material"]',w).focus()}
       const ja=P.est.find(i=>N(i.material)===N(d.material));
+      if(!ja&&nvJaAvisou!==d.material){const pr=parecidos(d.material);if(pr.length){nvJaAvisou=d.material;const bx=S('[data-parec]');
+        bx.innerHTML=`<div style="font-weight:600;font-size:13px;margin-bottom:6px">Já existe material parecido. É algum destes?</div>`+pr.map(i=>`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 0"><span style="font-size:13px">${esc(i.material)} <small style="color:var(--muted)">${esc(i.codigo)} · almox: ${num(int(i.quantidade))}</small></span><button class="btn" type="button" data-usar="${esc(i.codigo)}">Usar este</button></div>`).join('')+`<div style="font-size:12px;color:var(--muted);margin-top:6px">Se for outro material mesmo, clique de novo em <b>Adicionar ao lançamento</b>.</div>`;
+        bx.classList.remove('hide');$$('[data-usar]',bx).forEach(b=>b.onclick=()=>{const it=P.est.find(i=>i.codigo===b.dataset.usar);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});w.classList.add('hide');bx.classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)});return}}
       if(ja){if(!cart.find(c=>c.codigo===ja.codigo))cart.push({codigo:ja.codigo,material:ja.material,qtd:1});toast('Esse material já existe no estoque — usei o cadastrado ('+ja.codigo+').')}
       else if(!cart.find(c=>c.novo&&N(c.material)===N(d.material)))cart.push({codigo:'NOVO-'+Date.now(),material:d.material,novo:d,qtd:1});
       w.classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
-    S('[data-sug]').onmousedown=e=>{const bn=e.target.closest('[data-novo]');if(bn){e.preventDefault();return abrirNovo(S('[data-busca]').value.trim())}const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
+    S('[data-sug]').onmousedown=e=>{const ir=e.target.closest('[data-irent]');if(ir){e.preventDefault();const txt=S('[data-busca]').value.trim();setTipo('ENTRADA');toast('Cadastre o material novo aqui na Entrada. Depois faça a Entrega.');return abrirNovo(txt)}
+      const bn=e.target.closest('[data-novo]');if(bn){e.preventDefault();return abrirNovo(S('[data-busca]').value.trim())}const b=e.target.closest('[data-cod]');if(!b)return;e.preventDefault();const it=P.est.find(i=>i.codigo===b.dataset.cod);if(!cart.find(c=>c.codigo===it.codigo))cart.push({codigo:it.codigo,material:it.material,qtd:1});S('[data-busca]').value='';S('[data-sug]').classList.add('hide');desenhaCart();setTimeout(()=>{const q=$$('[data-q]',el).pop();q&&q.select()},0)};
     S('[data-eq]').onchange=()=>{if(tipo==='USO'||tipo==='DEVOLUCAO')cart=[];desenhaCart()};
     S('[data-limpar]').onclick=()=>{cart=[];desenhaCart()};
     S('[data-ok]').onclick=async()=>{const b=S('[data-ok]');b.disabled=true;b.textContent='Gravando…';
