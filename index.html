@@ -283,19 +283,30 @@ html.m-cel .kpi{padding:10px 12px}
 html.m-cel .kpi .k-l{font-size:11.5px}
 html.m-cel .kpi .k-v{font-size:19px;overflow-wrap:anywhere}
 html.m-cel .kpi .k-h{font-size:11px}
-/* tabelas viram linhas de cadastro */
-html.m-cel .tbl{max-height:none;overflow:visible;border:0;border-radius:0}
+/* tabelas viram fichas: título em cima, campos em 2 colunas (rótulo sobre o valor) */
+html.m-cel .tbl{max-height:none!important;overflow:visible;border:0;border-radius:0}
 html.m-cel .tbl table,html.m-cel .tbl tbody{display:block;width:100%}
 html.m-cel .tbl thead{display:none}
-html.m-cel .tbl tr{display:block;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;margin-bottom:6px}
+html.m-cel .tbl tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px}
 html.m-cel .tbl tbody tr td,html.m-cel .tbl tbody tr:hover td{background:none}
-html.m-cel .tbl td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:4px 0;border:0;text-align:right;font-size:13.5px;overflow-wrap:anywhere}
-html.m-cel .tbl td::before{content:attr(data-label);flex:none;max-width:42%;text-align:left;font-size:11.5px;font-weight:500;color:var(--muted);padding-top:1px}
-html.m-cel .tbl td:first-child{display:block;text-align:left;font-size:14px;font-weight:500;padding:2px 0 6px;margin-bottom:4px;border-bottom:1px solid var(--border)}
-html.m-cel .tbl td:first-child::before,html.m-cel .tbl td[data-label=""]::before{display:none}
-html.m-cel .tbl td[data-label=""]{justify-content:flex-end;flex-wrap:wrap}
-html.m-cel .tbl td[colspan]{display:block;text-align:center}
+html.m-cel .tbl td{display:block;min-width:0;padding:0;border:0;text-align:left!important;font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
+html.m-cel .tbl td::before{content:attr(data-label);display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:2px;line-height:1.2}
+html.m-cel .tbl td:first-child{grid-column:1/-1;font-size:14.5px;font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--border)}
+html.m-cel .tbl td:first-child::before{display:none}
+html.m-cel .tbl td.larga{grid-column:1/-1}
+html.m-cel .tbl td[data-label=""]{grid-column:1/-1;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding-top:2px}
+html.m-cel .tbl td[data-label=""]::before{display:none}
+html.m-cel .tbl td[colspan]{grid-column:1/-1;text-align:center!important}
 html.m-cel .tbl td[colspan]::before{display:none}
+html.m-cel .tbl td input,html.m-cel .tbl td select{width:100%;min-height:40px}
+html.m-cel .tbl td small,html.m-cel .tbl td .card-s{display:block;margin-top:1px}
+html.m-cel .tbl td .tag{white-space:normal}
+html.m-cel .kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1}
+html.m-cel .salvar-barra{flex-wrap:wrap;justify-content:stretch}
+html.m-cel .salvar-barra span{flex-basis:100%}
+html.m-cel .salvar-barra .btn{flex:1}
+html.m-cel .tela-it select{width:96px!important;flex:none}
+html.m-cel .seg{max-width:100%}
 /* formulários bons para o dedo */
 html.m-cel input,html.m-cel select,html.m-cel textarea{font-size:16px;min-height:44px}
 html.m-cel input[type=checkbox],html.m-cel input[type=radio]{min-height:0;width:20px;height:20px}
@@ -724,9 +735,10 @@ function montarBarraCel(){
   const mb=$('[data-menu]',bar);if(mb)mb.onclick=()=>$('#lado').classList.add('aberto');
 }
 /* rótulos das tabelas para virarem cartões no celular */
+const LARGAS=/^(MATERIAL|FUNCIONARIO|NOME|CLIENTE|OBSERVACAO|OBS\.?|NOTA|ITENS|MOTIVO|DESCRICAO|ENDERECO)$/;
 function rotularTabelas(raiz){
   $$('.tbl table',raiz).forEach(t=>{const hs=$$('thead th',t).map(th=>th.textContent.trim());if(!hs.length)return;
-    $$('tbody tr',t).forEach(tr=>{let c=0;[...tr.children].forEach(td=>{if(!td.hasAttribute('data-label'))td.setAttribute('data-label',hs[c]||'');c+=+(td.getAttribute('colspan')||1)})})});
+    $$('tbody tr',t).forEach(tr=>{let c=0;[...tr.children].forEach((td,k)=>{if(!td.hasAttribute('data-label'))td.setAttribute('data-label',hs[c]||'');const l=N(td.getAttribute('data-label'));if(k&&(LARGAS.test(l)||td.textContent.trim().length>26))td.classList.add('larga');c+=+(td.getAttribute('colspan')||1)})})});
 }
 let __rot=0;new MutationObserver(()=>{cancelAnimationFrame(__rot);__rot=requestAnimationFrame(()=>rotularTabelas(document))}).observe(document.body,{childList:true,subtree:true});
 function abrirApp(){
