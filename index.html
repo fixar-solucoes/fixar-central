@@ -146,6 +146,33 @@ tbody tr:hover td{background:rgba(255,255,255,.035)}
 tr:last-child td{border-bottom:0}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tbl{overflow:auto;max-height:460px;border:1px solid var(--border);border-radius:var(--r-sm)}
+.sel-c{width:34px;text-align:center}
+.sel-c input{width:16px;height:16px;accent-color:var(--marca);cursor:pointer;margin:0;vertical-align:middle}
+tr[data-cod]{cursor:pointer}
+tbody tr.sel-on td,tbody tr.sel-on:hover td{background:rgba(194,35,29,.13)}
+.sel-barra{position:sticky;bottom:0;z-index:3;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--marca);border-radius:var(--r-sm)}
+.sel-barra>span{margin-right:auto;font-size:13px}
+.sel-so{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.sel-so input{accent-color:var(--marca)}
+.selp-ov{position:fixed;inset:0;z-index:9999;background:rgba(8,8,10,.94);overflow:auto;padding:16px}
+.selp-acoes{max-width:900px;margin:0 auto 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:#fff;font-size:13px}
+.selp-acoes>span{margin-right:auto;opacity:.85}
+.selp-acoes label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.selp-acoes input{accent-color:var(--marca)}
+.selp{max-width:900px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--marca);border-radius:var(--r-sm);padding:18px 20px;color:var(--ink)}
+.selp-h{display:flex;align-items:center;gap:12px;padding-bottom:12px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+.selp-h img{width:44px;height:44px;border-radius:8px;object-fit:contain;background:#fff}
+.selp-t{font-weight:700;font-size:15px;letter-spacing:.2px}
+.selp-s{font-size:12px;color:var(--muted);margin-top:2px}
+.selp table{width:100%;border-collapse:collapse;font-size:13px}
+.selp th{text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:9px 8px;border-bottom:1px solid var(--border)}
+.selp td{padding:8px;border-bottom:1px solid var(--border)}
+.selp .num{text-align:right;white-space:nowrap}
+.selp tfoot td{border-bottom:0;padding-top:12px;color:var(--ink-2)}
+.selp-ov.sem-valor .vv{display:none}
+html.m-cel .selp{padding:12px}
+html.m-cel .selp table{font-size:12px}
+html.m-cel .selp td,html.m-cel .selp th{padding:6px 4px}
 .vazio{padding:22px;text-align:center;color:var(--muted);font-size:13px}
 .tag{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border-radius:var(--r-sm);font-size:11.5px;font-weight:500;background:color-mix(in srgb,var(--tg) 14%,transparent);color:var(--tg);white-space:nowrap}
 .sem{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
@@ -734,6 +761,26 @@ function montarBarraCel(){
   $$('[data-tela]',bar).forEach(b=>b.onclick=()=>abrir(b.dataset.tela));
   const mb=$('[data-menu]',bar);if(mb)mb.onclick=()=>$('#lado').classList.add('aberto');
 }
+/* lista de itens marcados no estoque, pronta para print */
+function verSelecaoEstoque(itens){
+  if(!itens.length)return;
+  const logo=($('.marca img')||$('.tile img')||{}).src||'';
+  const d=new Date(),dt=d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const comValor=itens.some(i=>flo(i.valor_unitario));
+  const tot=itens.reduce((t,i)=>t+Math.max(0,i.q)*flo(i.valor_unitario),0);
+  const ov=document.createElement('div');ov.className='selp-ov';
+  ov.innerHTML=`<div class="selp-acoes"><span>Tire o print da área abaixo (Win + Shift + S no computador)</span><label><input type="checkbox" data-pv${comValor?' checked':''}> mostrar valores</label><button class="btn" type="button" data-pf>Fechar</button></div>
+  <div class="selp">
+    <div class="selp-h">${logo?`<img src="${logo}" alt="Fixar">`:''}<div><div class="selp-t">FIXAR SOLUÇÕES · Lista de materiais</div><div class="selp-s">Almoxarifado · ${esc(dt)} · ${itens.length} ${itens.length===1?'item':'itens'}</div></div></div>
+    <table><thead><tr><th>#</th><th>Código</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="vv num">Valor unit.</th><th class="vv num">Valor total</th><th>Local</th></tr></thead>
+    <tbody>${itens.map((i,k)=>`<tr><td>${k+1}</td><td>${esc(i.codigo)}</td><td>${esc(i.material)}</td><td>${esc(i.categoria)}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="vv num">${flo(i.valor_unitario)?reaisC(flo(i.valor_unitario)):'—'}</td><td class="vv num">${flo(i.valor_unitario)?reais(Math.max(0,i.q)*flo(i.valor_unitario)):'—'}</td><td>${esc([i.prateleira,i.posicao].filter(Boolean).join('-'))}</td></tr>`).join('')}</tbody>
+    <tfoot class="vv"><tr><td colspan="6">Total em estoque dos itens marcados</td><td class="num"><b>${reais(tot)}</b></td><td></td></tr></tfoot></table>
+  </div>`;
+  document.body.appendChild(ov);
+  const pv=$('[data-pv]',ov),apl=()=>ov.classList.toggle('sem-valor',!pv.checked);pv.onchange=apl;apl();
+  const fechar=()=>{ov.remove();document.removeEventListener('keydown',esc_)};const esc_=e=>{if(e.key==='Escape')fechar()};
+  $('[data-pf]',ov).onclick=fechar;ov.onclick=e=>{if(e.target===ov)fechar()};document.addEventListener('keydown',esc_);
+}
 /* rótulos das tabelas para virarem cartões no celular */
 const LARGAS=/^(MATERIAL|FUNCIONARIO|NOME|CLIENTE|OBSERVACAO|OBS\.?|NOTA|ITENS|MOTIVO|DESCRICAO|ENDERECO)$/;
 function rotularTabelas(raiz){
@@ -865,12 +912,23 @@ const CAT={
     el.innerHTML=cardH(w,CAT.ultimas_mov,l.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Tipo</th><th>Material</th><th class="num">Qtd</th><th>Equipe</th></tr></thead><tbody>${l.map(m=>`<tr><td style="white-space:nowrap">${esc(m.data.slice(0,5))} ${esc(m.hora||'')}</td><td>${tag(TIPO_NOME[m.tipo]||m.tipo,TIPO_COR[m.tipo]||'var(--muted)')}</td><td>${esc(mapa[N(m.codigo_material)]||m.codigo_material)}</td><td class="num">${num(m.q)}</td><td>${esc(m.equipe||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Sem movimentações.</div>')}},
   tabela_estoque:{nome:'Estoque do almoxarifado',setores:['almoxarifado'],desc:'Tabela completa com busca e filtro por categoria',render(el,w){
     const cats=[...new Set(P.est.map(i=>i.categoria).filter(Boolean))].sort();
-    el.innerHTML=cardH(w,CAT.tabela_estoque,`<div class="linha"><input placeholder="Buscar material ou código…" data-b><select data-c><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="tbl" style="max-height:560px"><table><thead><tr><th>Código</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Valor unit.</th><th class="num">Valor total</th><th>Local</th></tr></thead><tbody data-t></tbody></table></div>`,`<button class="btn" type="button" data-xls title="Gera a planilha CONTROLE DE SUPRIMENTOS no padrão do e-mail">${ico('down')}Planilha padrão EDP</button>`);
+    el.innerHTML=cardH(w,CAT.tabela_estoque,`<div class="linha"><input placeholder="Buscar material ou código…" data-b><select data-c><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="tbl" style="max-height:560px"><table><thead><tr><th class="sel-c"><input type="checkbox" data-selall title="Marcar todos que estão na lista"></th><th>Código</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Valor unit.</th><th class="num">Valor total</th><th>Local</th></tr></thead><tbody data-t></tbody></table></div><div class="sel-barra hide" data-selbar><span data-selqt></span><label class="sel-so"><input type="checkbox" data-selso> só os marcados</label><button class="btn" type="button" data-sellimpa>Limpar</button><button class="btn pri" type="button" data-selver>Ver lista para print</button></div>`,`<button class="btn" type="button" data-xls title="Gera a planilha CONTROLE DE SUPRIMENTOS no padrão do e-mail">${ico('down')}Planilha padrão EDP</button>`);
     $('[data-xls]',el).onclick=async e=>{const b=e.currentTarget,t=b.innerHTML;b.disabled=true;b.textContent='Gerando…';
       try{const r=await exportarPlanilhaEDP();toast('Planilha gerada com '+r.ok+' itens.'+(r.faltou.length?' Sem correspondência no sistema (ficou o valor do modelo): '+r.faltou.join(', '):''),r.faltou.length>0)}
       catch(err){toast('Não deu para gerar a planilha: '+err.message,true)}finally{b.disabled=false;b.innerHTML=t}};
-    const f=()=>{const t=N($('[data-b]',el).value),c=$('[data-c]',el).value;
-      $('[data-t]',el).innerHTML=P.est.filter(i=>(!c||i.categoria===c)&&(!t||N(i.material+' '+i.codigo).includes(t))).map(i=>`<tr><td>${esc(i.codigo)}</td><td><span class="sem" style="background:${i.q<=0?'var(--crit)':i.min&&i.q<i.min?'var(--warn)':'var(--good)'}"></span>${esc(i.material)}</td><td>${esc(i.categoria)}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num">${num(i.min)}</td><td class="num">${flo(i.valor_unitario)?reaisC(flo(i.valor_unitario)):'—'}</td><td class="num"><b>${flo(i.valor_unitario)?reais(Math.max(0,i.q)*flo(i.valor_unitario)):'—'}</b></td><td>${esc([i.prateleira,i.posicao].filter(Boolean).join('-'))}</td></tr>`).join('')||'<tr><td colspan="8" class="vazio">Nada encontrado.</td></tr>'};
+    const SEL=window.__SEL_EST||(window.__SEL_EST=new Set());let vis=[];
+    const barra=()=>{const n=SEL.size;$('[data-selbar]',el).classList.toggle('hide',!n);$('[data-selqt]',el).innerHTML=`<b>${n}</b> ${n===1?'item marcado':'itens marcados'}`;
+      const sa=$('[data-selall]',el);const m=vis.filter(i=>SEL.has(i.codigo)).length;sa.checked=!!vis.length&&m===vis.length;sa.indeterminate=m>0&&m<vis.length};
+    const f=()=>{const t=N($('[data-b]',el).value),c=$('[data-c]',el).value,so=$('[data-selso]',el).checked;
+      vis=P.est.filter(i=>(!so||SEL.has(i.codigo))&&(!c||i.categoria===c)&&(!t||N(i.material+' '+i.codigo).includes(t)));
+      $('[data-t]',el).innerHTML=vis.map(i=>`<tr class="${SEL.has(i.codigo)?'sel-on':''}" data-cod="${esc(i.codigo)}"><td class="sel-c"><input type="checkbox" data-sel${SEL.has(i.codigo)?' checked':''}></td><td>${esc(i.codigo)}</td><td><span class="sem" style="background:${i.q<=0?'var(--crit)':i.min&&i.q<i.min?'var(--warn)':'var(--good)'}"></span>${esc(i.material)}</td><td>${esc(i.categoria)}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num">${num(i.min)}</td><td class="num">${flo(i.valor_unitario)?reaisC(flo(i.valor_unitario)):'—'}</td><td class="num"><b>${flo(i.valor_unitario)?reais(Math.max(0,i.q)*flo(i.valor_unitario)):'—'}</b></td><td>${esc([i.prateleira,i.posicao].filter(Boolean).join('-'))}</td></tr>`).join('')||'<tr><td colspan="9" class="vazio">Nada encontrado.</td></tr>';barra()};
+    $('[data-t]',el).onclick=e=>{if(e.target.closest('a,button'))return;const tr=e.target.closest('tr[data-cod]');if(!tr)return;const cod=tr.dataset.cod;
+      if(SEL.has(cod))SEL.delete(cod);else SEL.add(cod);const on=SEL.has(cod);tr.classList.toggle('sel-on',on);$('[data-sel]',tr).checked=on;
+      if($('[data-selso]',el).checked&&!on)f();else barra()};
+    $('[data-selall]',el).onchange=e=>{vis.forEach(i=>e.target.checked?SEL.add(i.codigo):SEL.delete(i.codigo));f()};
+    $('[data-sellimpa]',el).onclick=()=>{SEL.clear();$('[data-selso]',el).checked=false;f()};
+    $('[data-selso]',el).onchange=f;
+    $('[data-selver]',el).onclick=()=>verSelecaoEstoque([...SEL].map(cod=>P.est.find(i=>i.codigo===cod)).filter(Boolean));
     $('[data-b]',el).oninput=f;$('[data-c]',el).onchange=f;f()}},
   estoque_equipes:{nome:'Estoque por equipe',setores:['almoxarifado'],desc:'O que cada equipe tem no carro',render(el,w){
     const mapa=Object.fromEntries(P.est.map(i=>[N(i.codigo),i]));
