@@ -726,15 +726,19 @@ function metaDia(montadoresNoDia){const c=CFG();return c.meta_por==='setor'?int(
 /* ---------------------------------------------------------------- navegação */
 function setorAtivo(){return SESS.usuario.setor==='master'?(VER_COMO||null):SESS.usuario.setor}
 function telasDo(setor){return((LAYOUT.setores[setor]||{}).telas||[])}
+/* Funções escondidas do menu por enquanto (para voltar, é só apagar daqui) */
+const OCULTOS_SETORES=['seguranca'];          // Segurança do Trabalho inteira
+const OCULTAS_TELAS=['almoxarifado::t_frota']; // Frota e KM
+const oculta=id=>OCULTAS_TELAS.includes(id)||OCULTOS_SETORES.includes(String(id).split('::')[0]);
 function badge(t){const tipos=(t.widgets||[]).filter(w=>w.visivel!==false).map(w=>w.tipo);let n=0;if(tipos.includes('alertas'))n+=emFalta().length;if(tipos.includes('vencimentos'))n+=alertasSST();return n||''}
 function montarNav(){
   const u=SESS.usuario,nav=$('#nav');let h='';
   const item=(id,nome,ic,bd)=>`<button class="nav${TELA===id?' on':''}" data-tela="${esc(id)}">${ico(ic)}<span>${esc(nome)}</span>${bd?`<span class="bd">${bd}</span>`:''}</button>`;
   if(u.setor==='master'){
     h+=item('m_geral','Visão geral','home');
-    SETORES_UI.forEach(s=>{h+=`<div class="grupo">${SETOR_NOME[s]}</div>`;telasDo(s).forEach(t=>h+=item(s+'::'+t.id,t.nome,t.icone,badge(t)))});
+    SETORES_UI.filter(s=>!OCULTOS_SETORES.includes(s)).forEach(s=>{h+=`<div class="grupo">${SETOR_NOME[s]}</div>`;telasDo(s).filter(t=>!oculta(s+'::'+t.id)).forEach(t=>h+=item(s+'::'+t.id,t.nome,t.icone,badge(t)))});
     h+=`<div class="grupo">Administração</div>`+item('m_editor','Editor de telas','edit')+item('m_acessos','Acessos','key');
-  }else telasDo(u.setor).forEach(t=>h+=item(u.setor+'::'+t.id,t.nome,t.icone,badge(t)));
+  }else telasDo(u.setor).filter(t=>!OCULTAS_TELAS.includes(u.setor+'::'+t.id)).forEach(t=>h+=item(u.setor+'::'+t.id,t.nome,t.icone,badge(t)));
   nav.innerHTML=h;
   $$('.nav',nav).forEach(b=>b.onclick=()=>{abrir(b.dataset.tela);$('#lado').classList.remove('aberto')});
   montarBarraCel();
@@ -794,9 +798,9 @@ function abrirApp(){
   $('#uSetor').textContent=SETOR_NOME[u.setor]+(u.base?' · '+u.base:'');
   const ult=store.get('ultima_tela');
   const primeira=u.setor==='master'?'m_geral':u.setor+'::'+((telasDo(u.setor)[0]||{}).id||'');
-  abrir(ult&&(u.setor==='master'||String(ult).startsWith(u.setor+'::'))?ult:primeira);
+  abrir(ult&&(u.setor==='master'?!oculta(ult):String(ult).startsWith(u.setor+'::')&&!OCULTAS_TELAS.includes(ult))?ult:primeira);
   setTimeout(()=>{if(['almoxarifado','master'].includes(u.setor)&&emFalta().length)toast(''+emFalta().length+' item(ns) do estoque abaixo do mínimo — veja em Alertas.',true);
-    if(['seguranca','master'].includes(u.setor)&&alertasSST())toast(''+alertasSST()+' EPI/CA vencido ou vencendo — veja no Painel SST.',true)},900);
+    if((u.setor==='seguranca'||(u.setor==='master'&&!OCULTOS_SETORES.includes('seguranca')))&&alertasSST())toast(''+alertasSST()+' EPI/CA vencido ou vencendo — veja no Painel SST.',true)},900);
 }
 function abrir(id){
   TELA=id;store.set('ultima_tela',id);montarNav();window.scrollTo(0,0);
