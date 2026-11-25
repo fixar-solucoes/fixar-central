@@ -718,7 +718,7 @@ function prep(){
   P.inv=(D.inventarios||[]);
   P.mont=(D.producao_montagem||[]).map(r=>({...r,d:pdate(r.data),q:int(r.quantidade),m:String(r.montador||'').trim().toUpperCase()})).filter(r=>r.d);
   const lmm=(CFG().materiais_montagem||[]).map(N);
-  P.matMont=(D.materiais_montagem||P.est.filter(i=>lmm.includes(N(i.codigo)))).map(r=>({codigo:r.codigo,material:r.material,unidade:r.unidade,q:int(r.quantidade)})).sort((a,b)=>String(a.material).localeCompare(String(b.material),'pt-BR'));
+  P.matMont=(D.materiais_montagem||P.est.filter(i=>N(i.categoria).includes('MONTAGEM')||lmm.includes(N(i.codigo)))).map(r=>({codigo:r.codigo,material:r.material,unidade:r.unidade,q:int(r.quantidade)})).sort((a,b)=>String(a.material).localeCompare(String(b.material),'pt-BR'));
   P.baixas=(D.baixas_montagem?D.baixas_montagem.map(r=>({...r,d:pdate(r.data),q:int(r.quantidade),tipo:'MONTAGEM'})).filter(r=>r.d):P.mov.filter(m=>m.tipo==='MONTAGEM')).sort((a,b)=>+b.d-+a.d||String(b.hora).localeCompare(String(a.hora)));
   P.montadores=[...new Set([...P.func.filter(f=>/MONTA/.test(N(f.funcao))&&N(f.situacao)!=='INATIVO').map(f=>f.nome),...P.mont.map(r=>r.m)])].filter(Boolean).sort();
 }
@@ -1380,7 +1380,7 @@ const CAT={
         toast('Produção gravada: '+r.gravado.montador+' · '+num(r.gravado.quantidade)+(P.matMont.length?'. Agora dê baixa no material que você usou.':''));await carregarDados();abrir(TELA)}catch(err){toast(err.message,true);b.disabled=false}}}},
   baixa_montagem:{nome:'Baixa de material da montagem',setores:['montagem'],desc:'O montador dá baixa só no material que usou; sai do estoque do almoxarifado',render(el,w){
     const L=P.matMont;
-    if(!L.length){el.innerHTML=cardH(w,CAT.baixa_montagem,`<div class="vazio">Nenhum material da montagem cadastrado. ${SESS.usuario.setor==='master'?'Marque os materiais em Editor de telas, na aba Marca, metas e mensagens.':'Peça para o master marcar os materiais da montagem.'}</div>`);return}
+    if(!L.length){el.innerHTML=cardH(w,CAT.baixa_montagem,`<div class="vazio">Nenhum material da montagem cadastrado. ${SESS.usuario.setor==='master'?'Cadastre materiais com a categoria MONTAGEM no estoque, ou marque outros em Editor de telas, na aba Marca, metas e mensagens.':'Peça para o almoxarifado cadastrar os materiais com a categoria MONTAGEM.'}</div>`);return}
     el.innerHTML=cardH(w,CAT.baixa_montagem,`${L.length>8?'<input data-b placeholder="Buscar material…" style="margin-bottom:10px">':''}<div class="tbl" style="max-height:440px"><table><thead><tr><th>Material</th><th class="num">No almoxarifado</th><th class="num" style="width:120px">Usei</th></tr></thead><tbody>${L.map(i=>`<tr data-cod="${esc(i.codigo)}" data-n="${esc(N(i.material+' '+i.codigo))}"><td><b>${esc(i.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(i.codigo)}</div></td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num"><input type="number" min="0" step="1" inputmode="numeric" data-q placeholder="0" style="width:96px;text-align:right"></td></tr>`).join('')}</tbody></table></div>
       <label style="margin-top:12px">Observação</label><input data-obs placeholder="opcional">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap"><span data-res style="font-size:12px;color:var(--muted)">Nenhum material com quantidade</span><button class="btn pri" data-ok style="height:44px;padding:0 22px">Dar baixa</button></div>`,null,'só o que você usou');
@@ -1521,7 +1521,7 @@ function editorMarca(main){
     <div style="font-size:12px;color:var(--muted);margin-top:6px">Com mais de um item, o lançamento pergunta o que foi montado.</div>
     <label class="chk" style="margin-top:12px"><input type="checkbox" data-csab ${ED.config.sabado?'checked':''}> Sábado conta como dia útil na meta do mês</label>
     <label style="margin-top:16px">Materiais da montagem <span data-cmmq style="color:var(--muted);font-weight:400"></span></label>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Só os marcados aparecem para o montador dar baixa. A baixa sai do estoque do almoxarifado.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Os materiais com a categoria MONTAGEM no estoque já aparecem sozinhos. Marque aqui só outros que também devem aparecer. A baixa sai do estoque do almoxarifado.</div>
     <input data-cmmb placeholder="Buscar material ou código…" style="margin-bottom:8px">
     <div data-cmml style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 10px">${P.est.slice().sort((a,b)=>String(a.material).localeCompare(String(b.material),'pt-BR')).map(i=>`<label class="chk" style="margin:6px 0" data-n="${esc(N(i.material+' '+i.codigo+' '+i.categoria))}"><input type="checkbox" data-cmm="${esc(i.codigo)}" ${(ED.config.materiais_montagem||[]).map(N).includes(N(i.codigo))?'checked':''}> ${esc(i.material)} <small style="color:var(--muted)">${esc(i.codigo)} · ${esc(i.categoria||'')}</small></label>`).join('')||'<div class="vazio">Sem materiais no estoque.</div>'}</div></div></section>
   <section class="card w metade"><div class="card-h"><span class="card-t">Segurança do Trabalho</span></div><div class="card-b">
