@@ -878,6 +878,152 @@ async function exportarPlanilhaEDP(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='CONTROLE DE SUPRIMENTOS - FIXAR-EDP SP - '+dd+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
   return{ok,faltou};
 }
+/* ---------- planilha padrão Fixar (itens marcados) ---------- */
+function montarArquivosPlanilhaFixar(itens,info){
+  const X=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cols=['A','B','C','D','E','F','G','H','I','J'];
+  const str=(r,s,v)=>`<c r="${r}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${X(v)}</t></is></c>`;
+  const nm=(r,s,v)=>`<c r="${r}" s="${s}"><v>${v}</v></c>`;
+  const fm=(r,s,f)=>`<c r="${r}" s="${s}"><f>${X(f)}</f></c>`;
+  const vazio=(r,s)=>`<c r="${r}" s="${s}"/>`;
+  /* estilos: 0 normal | 1 faixa marca | 2 título | 3 subtítulo | 4 cabeçalho | 5 cabeçalho direita
+     6 texto | 7 texto zebra | 8 número | 9 número zebra | 10 R$ | 11 R$ zebra | 12 ok | 13 abaixo | 14 zerado
+     15 total rótulo | 16 total número | 17 total R$ | 18 rodapé | 19 texto negrito | 20 texto negrito zebra */
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.##"/><numFmt numFmtId="165" formatCode="&quot;R$&quot; #,##0.00"/></numFmts>
+<fonts count="8">
+<font><sz val="10"/><color rgb="FF232322"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="16"/><color rgb="FF1A1A19"/><name val="Segoe UI"/><family val="2"/></font>
+<font><sz val="10"/><color rgb="FF898781"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="10"/><color rgb="FF0A8A0A"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="10"/><color rgb="FFB47C00"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="10"/><color rgb="FFC22F2F"/><name val="Segoe UI"/><family val="2"/></font>
+<font><b/><sz val="10"/><color rgb="FF1A1A19"/><name val="Segoe UI"/><family val="2"/></font>
+</fonts>
+<fills count="9">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFC2231D"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF1A1A19"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF1F1EE"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE2F1E2"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF6ECD6"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF6E0E0"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE4E4E0"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="3">
+<border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left/><right/><top/><bottom style="thin"><color rgb="FFDCDCD7"/></bottom><diagonal/></border>
+<border><left/><right/><top style="medium"><color rgb="FF1A1A19"/></top><bottom style="medium"><color rgb="FF1A1A19"/></bottom><diagonal/></border>
+</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="27">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="5" fillId="6" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="6" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="7" fillId="8" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="164" fontId="7" fillId="8" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="165" fontId="7" fillId="8" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="7" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="7" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+  const H=['Código','Material','Categoria','Und.','Saldo','Mínimo','Situação','Valor unit.','Valor total','Local'];
+  const L0=6; /* primeira linha de itens */
+  let rows='';
+  rows+=`<row r="1" ht="5" customHeight="1">${cols.map(c=>vazio(c+1,1)).join('')}</row>`;
+  rows+=`<row r="2" ht="30" customHeight="1">${str('B2',2,'Controle de estoque')}</row>`;
+  rows+=`<row r="3" ht="18" customHeight="1">${str('B3',3,info.sub)}</row>`;
+  rows+=`<row r="4" ht="12" customHeight="1"/>`;
+  rows+=`<row r="5" ht="24" customHeight="1">${H.map((h,k)=>str(cols[k]+5,k>=4&&k<=8&&k!==6?5:k===6||k===9?25:4,h)).join('')}</row>`;
+  itens.forEach((it,k)=>{const r=L0+k,z=k%2;
+    const q=Number(it.q)||0,mi=Number(it.min)||0,vu=Number(it.vu)||0;
+    const sit=q<=0?['Zerado',14]:mi&&q<mi?['Abaixo do mínimo',13]:['OK',12];
+    rows+=`<row r="${r}" ht="20" customHeight="1">`+
+      str('A'+r,6+z,it.codigo)+str('B'+r,19+z,it.material)+str('C'+r,6+z,it.categoria)+str('D'+r,6+z,it.unidade)+
+      nm('E'+r,8+z,q)+(mi?nm('F'+r,8+z,mi):str('F'+r,21+z,'—'))+str('G'+r,sit[1],sit[0])+
+      (vu?nm('H'+r,10+z,vu)+fm('I'+r,10+z,`MAX(0,E${r})*H${r}`):str('H'+r,21+z,'—')+str('I'+r,21+z,'—'))+
+      str('J'+r,23+z,it.local||'—')+`</row>`});
+  const Lf=L0+itens.length-1,T=Lf+1;
+  rows+=`<row r="${T}" ht="22" customHeight="1">${str('A'+T,15,'Total')}${str('B'+T,15,itens.length+(itens.length===1?' item':' itens'))}${['C','D','E','F','G','H'].map(c=>vazio(c+T,15)).join('')}${fm('I'+T,17,`SUM(I${L0}:I${Lf})`)}${vazio('J'+T,15)}</row>`;
+  const R=T+2;
+  rows+=`<row r="${R}">${str('A'+R,18,'Fixar Soluções · Central de Operações · gerado pelo sistema')}</row>`;
+  const larg=[13,44,16,7,10,10,18,14,16,12];
+  const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+<dimension ref="A1:J${R}"/>
+<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/>
+<cols>${larg.map((w,k)=>`<col min="${k+1}" max="${k+1}" width="${w}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${rows}</sheetData>
+<autoFilter ref="A5:J${Lf}"/>
+<printOptions horizontalCentered="1"/>
+<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>
+<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>
+<headerFooter><oddFooter>&amp;LFixar Soluções&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter>
+${info.logo?'<drawing r:id="rId1"/>':''}
+</worksheet>`;
+  const f={};
+  f['[Content_Types].xml']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${info.logo?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':''}</Types>`;
+  f['_rels/.rels']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  f['xl/workbook.xml']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Estoque" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Estoque!$A$5:$J$${Lf}</definedName><definedName name="_xlnm.Print_Titles" localSheetId="0">Estoque!$5:$5</definedName></definedNames><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`;
+  f['xl/_rels/workbook.xml.rels']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  f['xl/styles.xml']=styles;
+  f['xl/worksheets/sheet1.xml']=sheet;
+  if(info.logo){
+    f['xl/worksheets/_rels/sheet1.xml.rels']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`;
+    f['xl/drawings/_rels/drawing1.xml.rels']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/></Relationships>`;
+    const px=46*9525;
+    f['xl/drawings/drawing1.xml']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>76200</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from><xdr:ext cx="${px}" cy="${px}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Logo Fixar"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${px}" cy="${px}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`;
+    f['xl/media/logo.png']={base64:info.logo};
+  }
+  return f;
+}
+async function gerarPlanilhaFixar(lista){
+  if(!lista.length)throw new Error('Marque pelo menos um item.');
+  const JSZip=await carregaJSZip();
+  const h=new Date(),p2=n=>String(n).padStart(2,'0');
+  const dd=p2(h.getDate())+'/'+p2(h.getMonth()+1)+'/'+h.getFullYear();
+  const src=($('.marca img')||{}).src||'';const logo=(src.match(/^data:image\/png;base64,(.+)$/)||[])[1]||'';
+  const itens=lista.slice().sort((a,b)=>String(a.categoria||'').localeCompare(String(b.categoria||''),'pt-BR')||String(a.material).localeCompare(String(b.material),'pt-BR'))
+    .map(i=>({codigo:i.codigo,material:i.material,categoria:i.categoria||'',unidade:i.unidade||'',q:Math.round((Number(i.q)||0)*100)/100,min:Number(i.min)||0,vu:flo(i.valor_unitario)||0,local:[i.prateleira,i.posicao].filter(Boolean).join('-')}));
+  const nome=(SESS&&SESS.usuario&&SESS.usuario.nome)||'';
+  const arq=montarArquivosPlanilhaFixar(itens,{logo,sub:'Fixar Soluções · Central de Operações · emitido em '+dd+' às '+p2(h.getHours())+':'+p2(h.getMinutes())+(nome?' por '+nome:'')});
+  const zip=new JSZip();Object.entries(arq).forEach(([n,c])=>typeof c==='string'?zip.file(n,c):zip.file(n,c.base64,{base64:true}));
+  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ESTOQUE FIXAR - '+dd.replace(/\//g,'-')+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
+  return itens.length;
+}
 function cardH(w,def,corpo,dir,sub){return`<section class="card${w.cor?' cor':''}"><div class="card-h"><span class="card-t">${esc(w.titulo||def.nome)}</span>${sub?`<span class="card-s">${sub}</span>`:''}${dir?`<span class="dir">${dir}</span>`:''}</div><div class="card-b">${corpo}</div></section>`}
 const kpi=(ic,cor,l,v,h)=>`<div class="kpi"><div class="k-ic" style="color:${/warn|crit/.test(cor)?cor:'var(--muted)'}">${ico(ic)}</div><div><div class="k-l">${esc(l)}</div><div class="k-v">${v}</div>${h?`<div class="k-h">${h}</div>`:''}</div></div>`;
 const tag=(t,c)=>`<span class="tag" style="--tg:${c}">${esc(t)}</span>`;
@@ -916,7 +1062,7 @@ const CAT={
     el.innerHTML=cardH(w,CAT.ultimas_mov,l.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Tipo</th><th>Material</th><th class="num">Qtd</th><th>Equipe</th></tr></thead><tbody>${l.map(m=>`<tr><td style="white-space:nowrap">${esc(m.data.slice(0,5))} ${esc(m.hora||'')}</td><td>${tag(TIPO_NOME[m.tipo]||m.tipo,TIPO_COR[m.tipo]||'var(--muted)')}</td><td>${esc(mapa[N(m.codigo_material)]||m.codigo_material)}</td><td class="num">${num(m.q)}</td><td>${esc(m.equipe||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Sem movimentações.</div>')}},
   tabela_estoque:{nome:'Estoque do almoxarifado',setores:['almoxarifado'],desc:'Tabela completa com busca e filtro por categoria',render(el,w){
     const cats=[...new Set(P.est.map(i=>i.categoria).filter(Boolean))].sort();
-    el.innerHTML=cardH(w,CAT.tabela_estoque,`<div class="linha"><input placeholder="Buscar material ou código…" data-b><select data-c><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="tbl" style="max-height:560px"><table><thead><tr><th class="sel-c"><input type="checkbox" data-selall title="Marcar todos que estão na lista"></th><th>Código</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Valor unit.</th><th class="num">Valor total</th><th>Local</th></tr></thead><tbody data-t></tbody></table></div><div class="sel-barra hide" data-selbar><span data-selqt></span><label class="sel-so"><input type="checkbox" data-selso> só os marcados</label><button class="btn" type="button" data-sellimpa>Limpar</button><button class="btn pri" type="button" data-selver>Ver lista para print</button></div>`,`<button class="btn" type="button" data-xls title="Gera a planilha CONTROLE DE SUPRIMENTOS no padrão do e-mail">${ico('down')}Planilha padrão EDP</button>`);
+    el.innerHTML=cardH(w,CAT.tabela_estoque,`<div class="linha"><input placeholder="Buscar material ou código…" data-b><select data-c><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="tbl" style="max-height:560px"><table><thead><tr><th class="sel-c"><input type="checkbox" data-selall title="Marcar todos que estão na lista"></th><th>Código</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Valor unit.</th><th class="num">Valor total</th><th>Local</th></tr></thead><tbody data-t></tbody></table></div><div class="sel-barra hide" data-selbar><span data-selqt></span><label class="sel-so"><input type="checkbox" data-selso> só os marcados</label><button class="btn" type="button" data-sellimpa>Limpar</button><button class="btn" type="button" data-selxls title="Gera uma planilha no padrão Fixar só com os itens marcados">${ico('down')}Planilha Fixar</button><button class="btn pri" type="button" data-selver>Ver lista para print</button></div>`,`<button class="btn" type="button" data-xls title="Gera a planilha CONTROLE DE SUPRIMENTOS no padrão do e-mail">${ico('down')}Planilha padrão EDP</button>`);
     $('[data-xls]',el).onclick=async e=>{const b=e.currentTarget,t=b.innerHTML;b.disabled=true;b.textContent='Gerando…';
       try{const r=await exportarPlanilhaEDP();toast('Planilha gerada com '+r.ok+' itens.'+(r.faltou.length?' Sem correspondência no sistema (ficou o valor do modelo): '+r.faltou.join(', '):''),r.faltou.length>0)}
       catch(err){toast('Não deu para gerar a planilha: '+err.message,true)}finally{b.disabled=false;b.innerHTML=t}};
@@ -932,6 +1078,9 @@ const CAT={
     $('[data-selall]',el).onchange=e=>{vis.forEach(i=>e.target.checked?SEL.add(i.codigo):SEL.delete(i.codigo));f()};
     $('[data-sellimpa]',el).onclick=()=>{SEL.clear();$('[data-selso]',el).checked=false;f()};
     $('[data-selso]',el).onchange=f;
+    $('[data-selxls]',el).onclick=async e=>{const b=e.currentTarget,t=b.innerHTML;b.disabled=true;b.textContent='Gerando…';
+      try{const n=await gerarPlanilhaFixar([...SEL].map(cod=>P.est.find(i=>i.codigo===cod)).filter(Boolean));toast('Planilha gerada com '+n+(n===1?' item.':' itens.'))}
+      catch(err){toast('Não deu para gerar a planilha: '+err.message,true)}finally{b.disabled=false;b.innerHTML=t}};
     $('[data-selver]',el).onclick=()=>verSelecaoEstoque([...SEL].map(cod=>P.est.find(i=>i.codigo===cod)).filter(Boolean));
     $('[data-b]',el).oninput=f;$('[data-c]',el).onchange=f;f()}},
   estoque_equipes:{nome:'Estoque por equipe',setores:['almoxarifado'],desc:'O que cada equipe tem no carro',render(el,w){
