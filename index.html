@@ -717,6 +717,7 @@ const flo=v=>{const t=String(v??'').replace(/[R$\s]/g,'');if(!t)return 0;const n
 const diasAte=d=>d?Math.round((d-P.hoje)/864e5):null;
 const statusVenc=d=>{const x=diasAte(d);if(x==null)return{t:'sem data',c:'var(--muted)',k:0};if(x<0)return{t:'vencido há '+(-x)+'d',c:'var(--crit)',k:2};if(x<=(CFG().dias_aviso||30))return{t:'vence em '+x+'d',c:'var(--warn)',k:1};return{t:'ok · '+fdate(d),c:'var(--good)',k:0}};
 const emFalta=()=>P.est.filter(i=>i.min&&i.q<i.min);
+const estoqueMudo=()=>!!store.get('silenciar_estoque'); /* alertas de estoque silenciados neste aparelho */
 const entAtivas=()=>P.ent.filter(e=>e.st==='EM USO');
 const alertasSST=()=>entAtivas().filter(e=>statusVenc(e.v).k>0).length+Object.values(P.epiCad).filter(c=>statusVenc(pdate(c.validade_ca)).k>0).length;
 function ehUtil(d){const w=d.getDay();return w>=1&&w<=5||(w===6&&!!CFG().sabado)}
@@ -730,7 +731,7 @@ function telasDo(setor){return((LAYOUT.setores[setor]||{}).telas||[])}
 const OCULTOS_SETORES=['seguranca','gerente_base']; // Segurança do Trabalho e Gerente de base (Minha base)
 const OCULTAS_TELAS=['almoxarifado::t_frota']; // Frota e KM
 const oculta=id=>OCULTAS_TELAS.includes(id)||OCULTOS_SETORES.includes(String(id).split('::')[0]);
-function badge(t){const tipos=(t.widgets||[]).filter(w=>w.visivel!==false).map(w=>w.tipo);let n=0;if(tipos.includes('alertas'))n+=emFalta().length;if(tipos.includes('vencimentos'))n+=alertasSST();return n||''}
+function badge(t){const tipos=(t.widgets||[]).filter(w=>w.visivel!==false).map(w=>w.tipo);let n=0;if(tipos.includes('alertas')&&!estoqueMudo())n+=emFalta().length;if(tipos.includes('vencimentos'))n+=alertasSST();return n||''}
 function montarNav(){
   const u=SESS.usuario,nav=$('#nav');let h='';
   const item=(id,nome,ic,bd)=>`<button class="nav${TELA===id?' on':''}" data-tela="${esc(id)}">${ico(ic)}<span>${esc(nome)}</span>${bd?`<span class="bd">${bd}</span>`:''}</button>`;
@@ -799,7 +800,7 @@ function abrirApp(){
   const ult=store.get('ultima_tela');
   const primeira=u.setor==='master'?'m_geral':u.setor+'::'+((telasDo(u.setor)[0]||{}).id||'');
   abrir(ult&&(u.setor==='master'?!oculta(ult):String(ult).startsWith(u.setor+'::')&&!OCULTAS_TELAS.includes(ult))?ult:primeira);
-  setTimeout(()=>{if(['almoxarifado','master'].includes(u.setor)&&emFalta().length)toast(''+emFalta().length+' item(ns) do estoque abaixo do mínimo — veja em Alertas.',true);
+  setTimeout(()=>{if(['almoxarifado','master'].includes(u.setor)&&!estoqueMudo()&&emFalta().length)toast(''+emFalta().length+' item(ns) do estoque abaixo do mínimo — veja em Alertas.',true);
     if((u.setor==='seguranca'||(u.setor==='master'&&!OCULTOS_SETORES.includes('seguranca')))&&alertasSST())toast(''+alertasSST()+' EPI/CA vencido ou vencendo — veja no Painel SST.',true)},900);
 }
 function abrir(id){
@@ -1263,7 +1264,8 @@ const CAT={
     const l=emFalta().sort((a,b)=>a.q/a.min-b.q/b.min);
     const compra=l.reduce((t,i)=>t+Math.max(0,i.min-i.q)*flo(i.valor_unitario),0);
     el.innerHTML=`<div class="kpis" style="margin-bottom:14px">${kpi('alert','var(--crit)','Zerados',num(l.filter(i=>i.q<=0).length),'sem nenhum saldo')}${kpi('alert','var(--warn)','Abaixo do mínimo',num(l.length),'precisam de reposição')}${kpi('chart','var(--s1)','Para repor até o mínimo',reais(compra),'estimativa pelo valor unitário')}</div>`+
-    cardH(w,CAT.alertas,l.length?`<div class="tbl" style="max-height:600px"><table><thead><tr><th>Situação</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Faltam</th><th class="num">Custo p/ repor</th></tr></thead><tbody>${l.map(i=>`<tr><td>${i.q<=0?tag('ZERADO','var(--crit)'):tag(Math.round(i.q/i.min*100)+'% do mínimo','var(--warn)')}</td><td><b>${esc(i.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(i.codigo)}</div></td><td>${esc(i.categoria)}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num">${num(i.min)}</td><td class="num"><b>${num(i.min-i.q)}</b></td><td class="num">${flo(i.valor_unitario)?reais((i.min-i.q)*flo(i.valor_unitario)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Nenhum alerta. Todo o estoque está acima do mínimo.</div>',null,l.length?'atenção':'tudo certo')}},
+    cardH(w,CAT.alertas,l.length?`<div class="tbl" style="max-height:600px"><table><thead><tr><th>Situação</th><th>Material</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Faltam</th><th class="num">Custo p/ repor</th></tr></thead><tbody>${l.map(i=>`<tr><td>${i.q<=0?tag('ZERADO','var(--crit)'):tag(Math.round(i.q/i.min*100)+'% do mínimo','var(--warn)')}</td><td><b>${esc(i.material)}</b><div style="font-size:11px;color:var(--muted)">${esc(i.codigo)}</div></td><td>${esc(i.categoria)}</td><td class="num">${num(i.q)} ${esc(i.unidade)}</td><td class="num">${num(i.min)}</td><td class="num"><b>${num(i.min-i.q)}</b></td><td class="num">${flo(i.valor_unitario)?reais((i.min-i.q)*flo(i.valor_unitario)):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vazio">Nenhum alerta. Todo o estoque está acima do mínimo.</div>',`<button class="btn sm" type="button" data-mudo title="Liga ou desliga o aviso ao entrar e o número no menu, só neste aparelho">${ico('alert',14)} ${estoqueMudo()?'Reativar alertas':'Silenciar alertas'}</button>`,estoqueMudo()?'alertas silenciados':l.length?'atenção':'tudo certo');
+    $('[data-mudo]',el).onclick=()=>{const m=!estoqueMudo();m?store.set('silenciar_estoque',true):store.del('silenciar_estoque');toast(m?'Alertas de estoque silenciados neste aparelho':'Alertas de estoque reativados');montarNav();CAT.alertas.render(el,w)}}},
   /* ---------- por funcionário / segurança do trabalho ---------- */
   funcionario_itens:{nome:'Estoque por funcionário',setores:['almoxarifado','seguranca'],desc:'Tudo que cada funcionário tem: EPI, EPC, ferramenta, CA e vencimento',render(el,w){
     let sel=window.__funcSel||(P.func[0]||{}).mat||'',cat='';
