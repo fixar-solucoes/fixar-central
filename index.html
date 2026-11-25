@@ -727,7 +727,7 @@ function metaDia(montadoresNoDia){const c=CFG();return c.meta_por==='setor'?int(
 function setorAtivo(){return SESS.usuario.setor==='master'?(VER_COMO||null):SESS.usuario.setor}
 function telasDo(setor){return((LAYOUT.setores[setor]||{}).telas||[])}
 /* Funções escondidas do menu por enquanto (para voltar, é só apagar daqui) */
-const OCULTOS_SETORES=['seguranca'];          // Segurança do Trabalho inteira
+const OCULTOS_SETORES=['seguranca','gerente_base']; // Segurança do Trabalho e Gerente de base (Minha base)
 const OCULTAS_TELAS=['almoxarifado::t_frota']; // Frota e KM
 const oculta=id=>OCULTAS_TELAS.includes(id)||OCULTOS_SETORES.includes(String(id).split('::')[0]);
 function badge(t){const tipos=(t.widgets||[]).filter(w=>w.visivel!==false).map(w=>w.tipo);let n=0;if(tipos.includes('alertas'))n+=emFalta().length;if(tipos.includes('vencimentos'))n+=alertasSST();return n||''}
