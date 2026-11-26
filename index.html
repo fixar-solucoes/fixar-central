@@ -1613,19 +1613,62 @@ async function renderAcessos(main){
     <div class="linha"><div><label>${u.usuario?'Nova senha (deixe vazio para manter)':'Senha'}</label><input name="senha" type="text" autocomplete="off" ${u.usuario?'':'required'}></div><div style="align-self:end"><label class="chk"><input type="checkbox" name="ativo" ${u.ativo==='NAO'?'':'checked'}> Acesso ativo</label></div></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">${u.usuario?'<button type="button" class="btn" data-novo>Cancelar</button>':''}<button class="btn pri">Salvar acesso</button></div></form></div></section>`;
   const desenha=(u)=>{
-    main.innerHTML=topo('Acessos','Quem entra no sistema e em qual setor. Cada pessoa só vê as telas do próprio setor.')+`<div class="grid"><div class="w doisTercos"><section class="card"><div class="card-h"><span class="card-t">Pessoas com acesso</span><span class="card-s">${lista.length}</span></div><div class="card-b"><div class="tbl"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Setor</th><th>Base</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>${lista.map((x,i)=>`<tr><td><b>${esc(x.usuario)}</b></td><td>${esc(x.nome)}</td><td>${tag(SETOR_NOME[x.setor]||x.setor,SETOR_COR[x.setor]||'var(--muted)')}</td><td>${esc(x.base||'—')}</td><td>${x.ativo==='NAO'?tag('bloqueado','var(--crit)'):tag('ativo','var(--good)')}</td><td>${esc(x.ultimo_acesso||'—')}</td><td><button class="btn sm" data-ed="${i}">Editar</button></td></tr>`).join('')}</tbody></table></div></div></section></div><div class="w terco">${form(u)}</div></div>`;
+    main.innerHTML=topo('Acessos','Quem entra no sistema e em qual setor. Cada pessoa só vê as telas do próprio setor.')+`<div class="grid"><div class="w doisTercos"><section class="card"><div class="card-h"><span class="card-t">Pessoas com acesso</span><span class="card-s">${lista.length}</span></div><div class="card-b"><div class="tbl"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Setor</th><th>Base</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>${lista.map((x,i)=>`<tr><td><b>${esc(x.usuario)}</b></td><td>${esc(x.nome)}</td><td>${tag(SETOR_NOME[x.setor]||x.setor,SETOR_COR[x.setor]||'var(--muted)')}</td><td>${esc(x.base||'—')}</td><td>${x.ativo==='NAO'?tag('bloqueado','var(--crit)'):tag('ativo','var(--good)')}</td><td>${esc(x.ultimo_acesso||'—')}</td><td style="white-space:nowrap"><button class="btn sm" data-ed="${i}">Editar</button>${x.setor==='master'?'':` <button class="btn sm" data-qr="${i}" title="QR de acesso rápido">${x.qr?'QR ativo':'QR'}</button>`}</td></tr>`).join('')}</tbody></table></div></div></section></div><div class="w terco">${form(u)}</div></div>`;
     const f=$('[data-f]',main);
-    $$('[data-ed]',main).forEach(b=>b.onclick=()=>desenha(lista[b.dataset.ed]));const nv=$('[data-novo]',main);if(nv)nv.onclick=()=>desenha();
+    $$('[data-ed]',main).forEach(b=>b.onclick=()=>desenha(lista[b.dataset.ed]));
+    $$('[data-qr]',main).forEach(b=>b.onclick=()=>painelQR(f.closest('.w'),lista[b.dataset.qr],async()=>{lista=(await api('usuarios')).usuarios;desenha()}));const nv=$('[data-novo]',main);if(nv)nv.onclick=()=>desenha();
     f.onsubmit=async e=>{e.preventDefault();const d={usuario:f.usuario.value.trim().toLowerCase(),nome:f.nome.value.trim(),setor:f.setor.value,base:f.base.value,senha:f.senha.value,ativo:f.ativo.checked};
       try{await api('usuario_salvar',{dados:d});toast('Acesso salvo: '+d.usuario);lista=(await api('usuarios')).usuarios;desenha()}catch(err){toast(err.message,true)}};
   };
   desenha();
 }
 
+/* ---------------------------------------------------------------- QR de acesso rápido */
+function carregaQR(){return window.qrcode?Promise.resolve(window.qrcode):new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';s.onload=()=>ok(window.qrcode);s.onerror=()=>er(new Error('Não deu para carregar o gerador de QR. Confira a internet.'));document.head.appendChild(s)})}
+async function svgQR(txt,cel){const q=(await carregaQR())(0,'M');q.addData(txt);q.make();return q.createSvgTag({cellSize:cel||6,margin:2,scalable:true})}
+function painelQR(col,x,depois){
+  const nome=esc(x.nome||x.usuario),setor=esc(SETOR_NOME[x.setor]||x.setor);
+  const base=`<section class="card"><div class="card-h"><span class="card-t">QR de acesso rápido</span><span class="card-s">${nome}</span></div><div class="card-b">
+    <div style="font-size:13px;color:var(--ink-2);line-height:1.5">Quem escanear este QR entra como <b>${nome}</b> (${setor}) <b>sem senha</b> e fica conectado por 30 dias naquele aparelho. Tudo o que fizer fica registrado no nome de ${nome}.</div>
+    <div style="font-size:12px;color:var(--warn);margin:10px 0">Se o QR vazar, clique em Desativar QR: os QRs impressos param de funcionar na hora.</div>
+    <div data-qrarea>${x.qr?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">QR ativo desde ${esc(x.qr)}. Por segurança o QR só aparece na hora em que é gerado; para imprimir de novo, gere um novo (o antigo para de funcionar).</div>`:''}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn pri" data-qrnovo>${x.qr?'Gerar novo QR':'Gerar QR'}</button>${x.qr?'<button class="btn" data-qrdel>Desativar QR</button>':''}<button class="btn" data-qrvolta>Voltar</button></div></div></section>`;
+  col.innerHTML=base;
+  $('[data-qrvolta]',col).onclick=()=>depois();
+  if($('[data-qrdel]',col))$('[data-qrdel]',col).onclick=async e=>{e.currentTarget.disabled=true;try{await api('qr_remover',{usuario:x.usuario});toast('QR desativado: os QRs impressos de '+(x.nome||x.usuario)+' não entram mais.');await depois()}catch(err){toast(err.message,true);e.currentTarget.disabled=false}};
+  $('[data-qrnovo]',col).onclick=async e=>{const b=e.currentTarget;b.disabled=true;
+    try{const r=await api('qr_criar',{usuario:x.usuario});const link=location.origin+location.pathname+'?acesso='+r.chave;const svg=await svgQR(link,6);
+      $('[data-qrarea]',col).innerHTML=`<div style="background:#fff;border-radius:10px;padding:12px;width:220px;margin:4px 0 10px">${svg}</div><div style="font-size:11px;color:var(--muted);word-break:break-all;margin-bottom:10px">${esc(link)}</div><button class="btn" data-qrprint>Imprimir cartaz</button>`;
+      $('[data-qrprint]',col).onclick=()=>cartazQR(r.nome,svg);
+      b.textContent='Gerar novo QR';b.disabled=false;x.qr='agora';toast('QR gerado. Imprima o cartaz agora: ele não aparece de novo.')}
+    catch(err){toast(err.message,true);b.disabled=false}};
+}
+function cartazQR(nome,svg){
+  const logo=($('.marca img')||{}).src||'';const w=window.open('','_blank');if(!w){toast('O navegador bloqueou a janela. Libere pop-ups para este site.',true);return}
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartaz · baixa de material</title><style>
+  @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1a1a19}
+  .faixa{height:6px;background:linear-gradient(90deg,#76180E,#C2231D 55%,#76180E)}.top{display:flex;align-items:center;gap:12px;padding:18px 0 8px}
+  .top img{width:48px;height:48px;border-radius:9px;border:1px solid #ddd;object-fit:contain}.top b{font-size:18px;font-weight:800;display:block}.top span{font-size:12px;color:#6b6a64}
+  h1{font-size:40px;line-height:1.1;margin:26px 0 8px}p.sub{font-size:18px;color:#4a4945;margin:0 0 26px}
+  .qr{width:300px;margin:0 auto 10px;padding:14px;border:2px solid #1a1a19;border-radius:14px}.qr svg{width:100%;height:auto;display:block}
+  .cap{text-align:center;font-size:15px;color:#4a4945;margin-bottom:28px}ol{font-size:18px;line-height:1.6;padding-left:26px;margin:0}ol b{font-weight:700}
+  .rod{margin-top:30px;font-size:12px;color:#898781;border-top:1px solid #ddd;padding-top:10px}</style></head><body>
+  <div class="faixa"></div><div class="top">${logo?`<img src="${logo}">`:''}<div><b>FIXAR SOLUÇÕES</b><span>Central de Operações</span></div></div>
+  <h1>Não esqueça de dar baixa no material</h1><p class="sub">Lançou a produção? Agora dê baixa só no material que você usou.</p>
+  <div class="qr">${svg}</div><div class="cap">Escaneie com a câmera do celular para entrar no Fixar Central<br><b>acesso rápido: ${esc(nome)}</b></div>
+  <ol><li>Escaneie o QR code</li><li>Abra <b>Lançar produção</b> e grave quantas montou hoje</li><li>No quadro <b>Baixa de material</b>, coloque quanto usou e clique em <b>Dar baixa</b></li></ol>
+  <div class="rod">Dúvidas: fale com o almoxarifado.</div><script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
+  w.document.close();
+}
+
 /* ---------------------------------------------------------------- início */
 document.addEventListener('input',()=>{window.__mexeu=true},true);
 abertura(async()=>{
   if(DEMO||store.get('sessao_v')!==2){store.del('sessao');store.set('sessao_v',2)}
+  const qrc=new URLSearchParams(location.search).get('acesso');
+  if(qrc){try{history.replaceState(null,'',location.pathname)}catch(e){}
+    try{const r=await api('login_qr',{chave:qrc});store.set('sessao',{token:r.token});try{sessionStorage.setItem('fx_sessao',JSON.stringify({token:r.token}))}catch(e){}}
+    catch(err){setTimeout(()=>toast(err.message,true),800)}}
   const s=store.get('sessao')||JSON.parse(sessionStorage.getItem('fx_sessao')||'null');
   if(s&&s.token){
     SESS={token:s.token,usuario:null};
